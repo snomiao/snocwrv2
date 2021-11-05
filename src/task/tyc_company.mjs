@@ -8,7 +8,10 @@ import { 天眼查公司数据, 天眼查账号池, 用户名获取 } from "./ty
 import { 睡 } from "sno-utils";
 
 if (main) {
+    // 重爬标记
+    // await 天眼查公司数据.updateMany({},{$set: { 解析于:null}})
     await tyc_company();
+    console.log('done');
 }
 
 export function 表列人员解析(表列) {
@@ -46,6 +49,7 @@ export default async function tyc_company() {
         }else{
             console.log('err');
             await 睡(10e6)
+            throw new Error('登录状态无效，请重新登录')
         }
 
         const 返回 = await pageInject("tyc-company");
@@ -58,7 +62,7 @@ export default async function tyc_company() {
     };
     const $match = { 解析于: null };
     console.log('天眼查公司数据检索任务数：', await 天眼查公司数据.countDocuments($match));
-    await 天眼查公司数据.并行聚合更新([{ $match }], 解析更新);
+    await 天眼查公司数据.并行聚合更新([{ $match },{$sort:{搜索结果序号:1}}], 解析更新);
 }
 export async function cookieSet(cookie_raw, domain) {
     const cookie_obj = cookie.parse(cookie_raw);

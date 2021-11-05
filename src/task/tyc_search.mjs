@@ -22,7 +22,7 @@ export default async function tyc_search() {
     for await (let 任务 of 任务列) {
         const urlSearch = `https://www.tianyancha.com/search?key=${任务.公司名}`;
         await pageGotoWait(urlSearch);
-        const 搜索结果 = await pageInject( "tyc-search");
+        const 搜索结果 = await pageInject("tyc-search");
         const 搜索于 = new Date();
         const { _id } = 任务;
         const 补表 = { _id, 搜索结果, 搜索于 };

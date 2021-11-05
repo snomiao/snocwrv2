@@ -1,15 +1,19 @@
-
 import puppeteer from "puppeteer";
+const {w=1440,h=1440} = {} 
 export const browser = await puppeteer.launch({
+    defaultViewport: { width: 1440, height: 1440 },
     args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-blink-features=AutomationControlled",
+        "--window-size=1440,1440",
     ],
+
     dumpio: false,
     headless: false,
 });
 export const page = await browser.newPage();
+
 // 反反爬
 // webdriver
 await page.evaluateOnNewDocument(() => {
@@ -126,14 +130,18 @@ export default browser;
 
 export async function pageGotoWait(url) {
     await page.goto(url, { waitUntil: "domcontentloaded" });
-    await 睡(1000+500*Math.random());
+    await 睡(1000 + 500 * Math.random());
 }
 
 import fs from "fs";
 export async function pageInject(injectorName) {
     const path = "injector/" + injectorName + ".mjs";
     const s = await fs.promises.readFile(path, "utf8");
-    const result = await page.evaluate(s);
+    const result = await page.evaluate(s).catch(async (e) => {
+        console.error(e);
+        await 睡(10e6);
+        throw e;
+    });
     return result;
 }
 
