@@ -7,7 +7,7 @@ if (main) {
     const ja = await 天眼查公司数据.聚合([{ $match }]);
     for await (const doc of ja) {
         const { 标题 } = doc;
-        const fn = `report/${标题}.json`;
+        const fn = `report/export-${标题}.json`;
         await fs.promises.readFile(fn, "utf8").catch(async () => {
             await fs.promises.writeFile(fn, JSON.stringify(doc, null, 4));
         });
