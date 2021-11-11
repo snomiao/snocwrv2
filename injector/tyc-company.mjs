@@ -1,13 +1,13 @@
 globalThis.clear?.();
 (() => {
-    const ofe = Object.fromEntries
+    const ofe = Object.fromEntries;
     const qsa = (ele, sel) => [...ele.querySelectorAll(sel)];
     const rf2 = (ls) =>
         ls.slice(ls.length / 2).map((_, i) => [ls[2 * i], ls[2 * i + 1]]);
     const 文本获取 = (e) => e?.innerText || e?.textContent || "";
     // [...document.querySelectorAll('.link-click').map(e=>e.style.background = 'red')
     const 键文本获取 = (e) => {
-        qsa(e,"span.link-click").map((e) => e.remove());
+        qsa(e, "span.link-click").map((e) => e.remove());
         const t = 文本获取(e);
         if (!t) {
             console.error("未能获取键文本于", e);
@@ -17,7 +17,7 @@ globalThis.clear?.();
         return t;
     };
     const 值文本获取 = (e) => {
-        qsa(e,"a.link-vip-more").map((e) => e.remove());
+        qsa(e, "a.link-vip-more").map((e) => e.remove());
         // 橙字链接清理(e);
         return 文本获取(e);
     };
@@ -56,8 +56,7 @@ globalThis.clear?.();
         const thtd = qsa(t, ":scope>thead>tr>*").map(键文本获取);
         const trs = qsa(t, ":scope>tbody>tr");
         const 格解析 = (td, i) => [thtd[i], 文本与链接获取(td)];
-        const 行解析 = (tr) =>
-            ofe(qsa(tr, ":scope>td").map(格解析));
+        const 行解析 = (tr) => ofe(qsa(tr, ":scope>td").map(格解析));
         return trs.map(行解析);
     };
     const chart表格表列获取尝试 = (t) => {
@@ -71,26 +70,34 @@ globalThis.clear?.();
         const 行解析 = (tr) => {
             const tds = qsa(tr, ":scope>td");
             const head = tds[0];
-            return [
-                键文本获取(head),
-                ofe(tds.slice(1).map(格解析)),
-            ];
+            return [键文本获取(head), ofe(tds.slice(1).map(格解析))];
         };
         const chart = [ofe(trs.map(行解析))];
         return chart;
     };
     const 对键表格表列获取尝试 = (t) => {
         if (!t.classList.contains("-striped-col")) return null;
-        return [
-            ofe(
-                rf2(qsa(t, ":scope>tbody>tr>td")).map(单元格对解析)
-            ),
-        ];
+        return [ofe(rf2(qsa(t, ":scope>tbody>tr>td")).map(单元格对解析))];
     };
     const 历史表格表列获取尝试 = (t) => {
         if (!t.classList.contains("-first-col")) return null;
+        const re = qsa(t, "tr").map((tr) => {
+            const [指标, 日期, 内容, ...空] = qsa(tr, "td").map(td=>{
+                td.getAttru
+            }).map(文本获取);
 
-        throw new Error("实现TODO");
+            if (空.length) {
+                console.log("未知格式的历史表格", t);
+                throw new Error("未知格式的历史表格");
+            }
+            return { 指标, 日期, 内容 };
+        });
+        if (re.length > 1) {
+            return null
+            console.log(re);
+            throw new Error("TODO CHECK");
+        }
+        return re;
     };
     const 表格表列获取 = (t) => {
         const r =
@@ -111,27 +118,25 @@ globalThis.clear?.();
     //     qsa(e,"span[onclick]").map((e) => e.remove());
     const 键值串化 = ({ 表名, 数量 }) => 表名 + ":" + 数量;
     // 橙字链接清理();
-    const 表格列 = qsa(document,"table.table");
+    const 表格列 = qsa(document, "table.table");
     const 表列对列 = 表格列
         .map(表格解析)
         .filter(({ 表名 }) => 表名 && !表名.match("："))
         .filter(({ 表列 }) => 表列)
         .map(({ 表名, 数量, 表列 }) => [表名, 表列]);
-    const 数量对列 = qsa(document,".data-title")
+    const 数量对列 = qsa(document, ".data-title")
         .map(表名与数量获取)
         .filter((e) => e)
         .map(({ 表名, 数量 }) => [表名 + "_数量", 数量]);
     const 以键名排序 = ([ka], [kb]) => ka.localeCompare(kb);
-    const 汇总返回表列表 = ofe(
-        [...表列对列, ...数量对列].sort(以键名排序)
-    );
+    const 汇总返回表列表 = ofe([...表列对列, ...数量对列].sort(以键名排序));
     const 表打印 = ([键, 值]) => {
         if (typeof 值 === "object") return console.table(值);
         return console.log(`${键}:${值}`);
     };
     // 打印
     const 标签描述表 = ofe(
-        qsa(document,".-company-box .tag-common")
+        qsa(document, ".-company-box .tag-common")
             .map((e) => e.innerText.split(/\r?\n/g))
             .map(([k, ...v]) => [k, v.join("\n")])
     );
@@ -155,7 +160,9 @@ globalThis.clear?.();
         ])
     );
     const 风险表 = ofe(
-        qsa(document,".risk-item").map(文本获取).map((e) => e.split("\n"))
+        qsa(document, ".risk-item")
+            .map(文本获取)
+            .map((e) => e.split("\n"))
     );
 
     const 公司情况表 = {

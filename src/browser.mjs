@@ -1,12 +1,12 @@
 import puppeteer from "puppeteer";
-const {w=1440,h=1440} = {} 
+const {w=1024,h=1024} = {} 
 export const browser = await puppeteer.launch({
-    defaultViewport: { width: 1440, height: 1440 },
+    defaultViewport: { width: 1024, height: 1024 },
     args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-blink-features=AutomationControlled",
-        "--window-size=1440,1440",
+        "--window-size=1024,1024",
     ],
 
     dumpio: false,
