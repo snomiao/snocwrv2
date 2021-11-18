@@ -3,7 +3,7 @@
   "useTabs": false,
   "bracketSameLine": true,
   "semi": true,
-  "arrowParens": "always",
+  "arrowParens": "avoid",
   "endOfLine": "lf",
   "bracketSpacing": true,
   "cursorOffset": -1

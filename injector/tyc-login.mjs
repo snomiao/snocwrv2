@@ -1,5 +1,5 @@
-globalThis.clear?.();
 (() => {
+    globalThis.clear?.();
     const qsa = (ele, sel) => [...ele?.querySelectorAll(sel)];
     const 文本获取 = (e) => e?.innerText || e?.textContent || "";
     document?.querySelector('[tyc-event-ch="Login.PasswordLogin"]')?.click?.();

@@ -1,6 +1,6 @@
 // https://www.tianyancha.com/search?key=
-globalThis.clear?.();
 (() => {
+    globalThis.clear?.();
     const qsa = (ele, sel) => [...ele?.querySelectorAll(sel)];
     const 文本获取 = (e) => e?.innerText || e?.textContent || "";
     const 标题获取 = (e) => 文本获取(e);

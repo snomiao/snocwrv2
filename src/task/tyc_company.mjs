@@ -1,17 +1,18 @@
 import esm from "es-main";
 const main = esm(import.meta);
 
-import { page, pageInject, pageGotoWait } from "../browser.mjs";
+import { page, pageInject, pageGotoWait, cookieSet } from "../browser.mjs";
 import _ from "lodash";
-import cookie from "cookie";
-import { 天眼查公司数据, 天眼查账号池, 用户名获取 } from "./tyc.mjs";
+import { 天眼查公司数据, 天眼查账号池 } from "./tyc.mjs";
 import { 睡 } from "sno-utils";
+import { 用户名获取 } from "./login.mjs";
+import { reportJsonExport } from "./tyc_export.mjs";
 
 if (main) {
     // 重爬标记
     // await 天眼查公司数据.updateMany({},{$set: { 解析于:null}})
     await tyc_company();
-    console.log('done');
+    console.log("done");
 }
 
 export function 表列人员解析(表列) {
@@ -29,11 +30,11 @@ export function 表列人员解析(表列) {
     return 表列.map(表处理);
 }
 export default async function tyc_company() {
-    // get account 
+    // get account
     const 可用账号 = await 天眼查账号池.findOne({ 错误: null });
     const { _id, 账号, 用户名, cookie: cookie_raw } = 可用账号;
     await cookieSet(cookie_raw, "www.tianyancha.com");
-    
+
     const 解析更新 = async ({ 标题, 标题链接 }) => {
         console.log("正在处理" + 标题 + ":" + 标题链接);
         await pageGotoWait(标题链接);
@@ -46,33 +47,45 @@ export default async function tyc_company() {
                 用户名: got用户名,
                 检查于: new Date(),
             });
-        }else{
-            console.log('err');
-            await 睡(10e6)
-            throw new Error('登录状态无效，请重新登录')
+        } else {
+            console.log("err");
+            await 睡(10e6);
+            throw new Error("登录状态无效，请重新登录");
         }
-
         const 返回 = await pageInject("tyc-company");
         const 补表 = {
+            标题,
+            标题链接,
             ...返回,
             解析于: new Date(),
             解析账号: { _id, 账号, 用户名 },
         };
+        await reportJsonExport(补表);
+        await 睡(10e3); // 降低频率
+        // 标题: /四川成洪磷化工有限责任公司|四川省国壕电器设备有限公司|四川省国壕电器设备有限公司双流分公司|成都市世森科技投资有限公司|无锡市南太房地产开发有限公司/,
         return { $set: 补表 };
     };
-    const $match = { 解析于: null };
-    console.log('天眼查公司数据检索任务数：', await 天眼查公司数据.countDocuments($match));
-    await 天眼查公司数据.并行聚合更新([{ $match },{$sort:{搜索结果序号:1}}], 解析更新);
-}
-export async function cookieSet(cookie_raw, domain) {
-    const cookie_obj = cookie.parse(cookie_raw);
-    const cookie_ent = Object.entries(cookie_obj);
-    const cookieSetMake = (cookie_ent, domain) =>
-        cookie_ent.map(([name, value]) => ({
-            name,
-            value,
-            domain,
-        }));
-    const cookie_set = cookieSetMake(cookie_ent, domain);
-    await page.setCookie(...cookie_set);
+    // const $match = {
+    //     解析于: null,
+    //     搜索结果序号: { $lte: 3 }
+    // };
+
+    // {
+    //     const $match = {
+    //         标题: /四川成洪磷化工有限责任公司|四川省国壕电器设备有限公司|四川省国壕电器设备有限公司双流分公司|无锡市南太房地产开发有限公司|成都市世森科技投资有限公司/,
+    //     };
+    //     await 天眼查公司数据.updateMany($match, { $unset: { 解析于: null } });
+    // }
+    const $match = {
+        标题: /四川成洪磷化工有限责任公司|四川省国壕电器设备有限公司|四川省国壕电器设备有限公司双流分公司|无锡市南太房地产开发有限公司|成都市世森科技投资有限公司/,
+        解析于: null,
+    };
+    console.log(
+        "天眼查公司数据检索任务数：",
+        await 天眼查公司数据.countDocuments($match)
+    );
+    await 天眼查公司数据.并行聚合更新(
+        [{ $match }, { $sort: { 搜索结果序号: 1 } }, ],
+        解析更新
+    );
 }

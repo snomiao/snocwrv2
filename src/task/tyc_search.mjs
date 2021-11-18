@@ -19,15 +19,18 @@ async function 临时补搜索结果() {
 
 export default async function tyc_search() {
     const 任务列 = await 天眼查搜索任务.多查列({ 搜索于: null });
-    for await (let 任务 of 任务列) {
-        const urlSearch = `https://www.tianyancha.com/search?key=${任务.公司名}`;
+    for await (let doc of 任务列) {
+        await search(doc);
+    }
+    async function search(doc) {
+        const urlSearch = `https://www.tianyancha.com/search?key=${doc._id}`;
         await pageGotoWait(urlSearch);
         const 搜索结果 = await pageInject("tyc-search");
         const 搜索于 = new Date();
-        const { _id } = 任务;
+        const { _id } = doc;
         const 补表 = { _id, 搜索结果, 搜索于 };
         console.table(搜索结果);
-        console.log(任务.公司名, JSON.stringify(补表));
+        console.log(doc._id, JSON.stringify(补表));
         await 天眼查搜索任务.单补(补表);
         await Promise.all(搜索结果.map(导入到公司数据));
     }

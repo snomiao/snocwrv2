@@ -1,12 +1,16 @@
 import puppeteer from "puppeteer";
-const {w=1024,h=1024} = {} 
+import cookie from "cookie";
+const {
+    width = (1024 + Math.random() * 20) | 0,
+    height = (768 + Math.random() * 20) | 0,
+} = {};
 export const browser = await puppeteer.launch({
-    defaultViewport: { width: 1024, height: 1024 },
+    defaultViewport: { width, height, deviceScaleFactor: 1 },
     args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-blink-features=AutomationControlled",
-        "--window-size=1024,1024",
+        `--window-size=${width},${height}`,
     ],
 
     dumpio: false,
@@ -25,21 +29,25 @@ await page.evaluateOnNewDocument(() => {
 await page.evaluateOnNewDocument(() => {
     window.chrome = {};
     window.chrome.app = {
-        InstallState: "hehe",
-        RunningState: "haha",
-        getDetails: "xixi",
-        getIsInstalled: "ohno",
+        InstallState: "" + Math.random(),
+        RunningState: "" + Math.random(),
+        getDetails: "" + Math.random(),
+        getIsInstalled: "" + Math.random(),
     };
     window.chrome.csi = function () {};
     window.chrome.loadTimes = function () {};
     window.chrome.runtime = function () {};
 });
 // userAgent设置
+
 await page.evaluateOnNewDocument(() => {
+    // const ua =
+    //     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.113 Safari/537.36";
+    const ua =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36";
     Object.defineProperty(navigator, "userAgent", {
         //userAgent在无头模式下有headless字样，所以需覆盖
-        get: () =>
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.113 Safari/537.36",
+        get: () => ua,
     });
 });
 // # plugins
@@ -143,6 +151,18 @@ export async function pageInject(injectorName) {
         throw e;
     });
     return result;
+}
+export async function cookieSet(cookie_raw, domain) {
+    const cookie_obj = cookie.parse(cookie_raw);
+    const cookie_ent = Object.entries(cookie_obj);
+    const cookieSetMake = (cookie_ent, domain) =>
+        cookie_ent.map(([name, value]) => ({
+            name,
+            value,
+            domain,
+        }));
+    const cookie_set = cookieSetMake(cookie_ent, domain);
+    await page.setCookie(...cookie_set);
 }
 
 // 单元测试
