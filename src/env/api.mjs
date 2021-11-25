@@ -1,17 +1,13 @@
-import esm from "es-main";
-import dotenv from "dotenv";
-dotenv.config();
-const main = esm(import.meta);
+// import
 import express from "express";
 import saltHash from "password-salt-and-hash";
 import jwt from "jwt-promisify";
 import db from "./db.mjs";
-import { 天眼查搜索任务 } from "./task/tyc.mjs";
+import { 搜索任务 } from "../task/tyc.mjs";
+// init
+await import("dotenv").then(e => e.config());
 const { JWT_SECRET = "TEST_JWT_SECRET" } = process.env;
 
-/**
- * @return {password, salt}
- */
 const 密码加密 = 密码 => saltHash.generateSaltHash(密码);
 const 密码验证 = (密钥, 密码) =>
     saltHash.verifySaltHash(密钥.salt, 密钥.password, 密码);
@@ -55,14 +51,24 @@ export async function 数据增补API({ body }, res) {
 }
 const app = express();
 // const _APIGET = (url, db) => e;
-const useJsonP = fn => async (req, res) => await res.send(`_(${JSON.stringify(await fn(req.body))})`);
+const useJsonP = fn => async (req, res) =>
+    await res.send(`_(${JSON.stringify(await fn(req.body))})`);
 app.use(express.json());
 app.post("/api/login", 登录API);
 app.post("/api/tyc/put", 数据增补API);
 app.get(
     "/api/search",
-    useJsonP(async (q={}) => await 天眼查搜索任务.多查列(q))
+    useJsonP((q = {}) =>
+        搜索任务.多查列(q, { projection: { 搜索结果: 0 } })
+    )
 );
+app.get(
+    "/api/search",
+    useJsonP((q = {}) =>
+        搜索任务.多查列(q, { projection: { 搜索结果: 0 } })
+    )
+);
+
 // app.post(
 //     "/api/search/:id",
 //     async (req, res) => await res.send(await 天眼查搜索任务.多查列({}))
@@ -77,6 +83,7 @@ app.listen(65534);
 //     }).then((e) => e.json())
 // );
 
+const main = await import("es-main").then(e => e.default(import.meta));
 if (main) {
     console.table(await API_用户.多查列({}));
     const 令牌 = await 登录API({

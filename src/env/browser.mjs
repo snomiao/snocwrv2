@@ -1,18 +1,20 @@
 import puppeteer from "puppeteer";
 import cookie from "cookie";
+import { 文本文件读取, 睡 } from "sno-utils";
+
 const {
     width = (1024 + Math.random() * 20) | 0,
     height = (768 + Math.random() * 20) | 0,
 } = {};
 export const browser = await puppeteer.launch({
-    defaultViewport: { width, height, deviceScaleFactor: 1 },
+    defaultViewport: { width, height, deviceScaleFactor: 0.5 },
     args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-blink-features=AutomationControlled",
         `--window-size=${width},${height}`,
+        "--start-maximized",
     ],
-
     dumpio: false,
     headless: false,
 });
@@ -113,7 +115,7 @@ await page.evaluateOnNewDocument(() => {
 // permissions设置
 await page.evaluateOnNewDocument(() => {
     const originalQuery = window.navigator.permissions.query; //notification伪装
-    window.navigator.permissions.query = (parameters) =>
+    window.navigator.permissions.query = parameters =>
         parameters.name === "notifications"
             ? Promise.resolve({ state: Notification.permission })
             : originalQuery(parameters);
@@ -136,23 +138,25 @@ await page.evaluateOnNewDocument(() => {
 });
 export default browser;
 
-export async function pageGotoWait(url) {
-    await page.goto(url, { waitUntil: "domcontentloaded" });
-    await 睡(1000 + 500 * Math.random());
+export async function 页面打开等待(url, 等毫秒 = 1000 + 500 * Math.random()) {
+    console.log(`正在打开${url}`);
+    await page.goto(url, { waitUntil: "networkidle2" });
+    await 睡(等毫秒);
 }
 
-import fs from "fs";
-export async function pageInject(injectorName) {
+export async function 页面文件注入(injectorName) {
     const path = "injector/" + injectorName + ".mjs";
-    const s = await fs.promises.readFile(path, "utf8");
-    const result = await page.evaluate(s).catch(async (e) => {
+    const js = await 文本文件读取(path);
+    return await 页面注入(js);
+}
+export async function 页面注入(s) {
+    return await page.evaluate(s).catch(async e => {
         console.error(e);
         await 睡(10e6);
         throw e;
     });
-    return result;
 }
-export async function cookieSet(cookie_raw, domain) {
+export async function cookie设置(cookie_raw, domain) {
     const cookie_obj = cookie.parse(cookie_raw);
     const cookie_ent = Object.entries(cookie_obj);
     const cookieSetMake = (cookie_ent, domain) =>
@@ -166,11 +170,8 @@ export async function cookieSet(cookie_raw, domain) {
 }
 
 // 单元测试
-import esm from "es-main";
-import { 睡 } from "sno-utils";
-const main = esm(import.meta);
-
+const main = await import("es-main").then(e => e.default(import.meta));
 if (main) {
-    await pageGotoWait("https://example.com");
+    await 页面打开等待("https://example.com");
     // await browser.close();
 }
