@@ -3,11 +3,12 @@
     "version": "1.0.0",
     "main": "index.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1",
+        "api-serve": "nodemon src/api.mjs",
+        "company": "node src/task/tyc_company.mjs",
         "search": "pm2 start src/task/tyc_search.mjs --watch",
         "_search": "node src/task/tyc_search.mjs",
         "tyc": "node src/task/tyc.mjs",
-        "api-serve": "nodemon src/api.mjs"
+        "test": "echo \"Error: no test specified\" && exit 1"
     },
     "repository": {
         "type": "git",

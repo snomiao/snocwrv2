@@ -41,15 +41,8 @@ export default async function 搜索爬取() {
         console.table(搜索结果);
         console.log(doc._id, JSON.stringify(补表));
         await 搜索任务.单补(补表);
-        await Promise.all(
-            搜索结果.map(doc => {
-                return await 公司数据.单补(
-                    { 标题, 标题链接, 搜索结果序号, 搜索于 },
-                    { 标题链接: 1 }
-                );
-            })
-        );
-        // await 睡(10e3);
+        await Promise.all(搜索结果.map(导入到公司数据));
+        await 睡(5e3);
     }
 }
 

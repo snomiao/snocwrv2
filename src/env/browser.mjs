@@ -18,7 +18,29 @@ export const browser = await puppeteer.launch({
     dumpio: false,
     headless: false,
 });
+
 export const page = await browser.newPage();
+
+// 开启请求拦截
+await page.setRequestInterception(true);
+page.on("request", async request => {
+    const url = request.url();
+    const allow = url.match(
+        /static.geetest.com|qbox.me|sensorapi.tianyancha.com|clkst.tianyancha.com/
+    );
+    if (allow) {
+        request.continue();
+        return;
+    }
+    // 如果文件类型为image,则中断加载
+    if (request.resourceType() === "image") {
+        console.log(`blocked load: ${request.url()}`);
+        request.abort();
+        return;
+    }
+    // 正常加载其他类型的文件
+    request.continue();
+});
 
 // 反反爬
 // webdriver

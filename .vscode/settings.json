@@ -1,5 +1,6 @@
 {
     "code-runner.executorMap": {
         "javascript": "npx nodemon"
+        // "javascript": "node"
     }
 }

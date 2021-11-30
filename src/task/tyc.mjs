@@ -2,24 +2,16 @@ import esm from "es-main";
 const main = esm(import.meta);
 import _ from "lodash";
 import db from "../env/db.mjs";
-import TSV from "TSV";
 import 公司爬取 from "./tyc_company.mjs";
 import 搜索爬取 from "./tyc_search.mjs";
 import 账号登录, { 天眼查账号表补 } from "./login.mjs";
+import { csv表列串 } from "./csv表列串.mjs";
 
 export const 搜索任务 = db.任务v2_天眼查_公司搜索任务;
 export const 公司数据 = db.任务v2_天眼查_公司信息原始数据;
 export const 公司信息 = db.任务v2_天眼查_公司信息;
 export const 账号池 = db.任务v2_天眼查_账号池;
 export const 详情表 = 名义 => db["任务v2_天眼查_公司_" + 名义];
-
-export const csv串 = s =>
-    TSV.CSV.parse(
-        s
-            .join("")
-            .replace(/^#.*\n?$\n?/g, "")
-            .trim()
-    );
 
 // import { page } from "../browser.mjs";
 
@@ -36,7 +28,7 @@ if (main) {
     console.log("done");
 }
 async function 天眼查数据表补() {
-    const 公司搜索任务表列 = csv串`
+    const 公司搜索任务表列 = csv表列串`
 公司名
 成都市世森科技投资有限公司
 成都市凯发房屋开发有限责任公司

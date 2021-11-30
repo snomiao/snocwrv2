@@ -178,7 +178,7 @@
             const nextBtn = pagerSel("a.-next");
             if (nextBtn && 翻页否) {
                 nextBtn.click();
-                await 睡(5e3); //等5秒
+                await 睡(10e3); //等10秒翻页
             } else {
                 break; // end...
             }
@@ -189,13 +189,16 @@
     // TODO 改成先查所有data-content再处理table
     const 表格解析 = async t => {
         const { 表名, 数量 } = 表名与数量获取(t);
-
         const 关键表 =
             /工商信息|主要人员|股东信息|对外投资|最终受益人|变更记录|开庭公告|法律诉讼/;
         const 翻页否 = !!表名?.match?.(关键表);
+        
+        //注意翻页行为会让t被remove,所以必须先搞定表名与数量
+        const 表列 = 表列人员解析(await 表格表列翻页获取(t, 翻页否));
         return {
-            ...表名数量,
-            表列: 表列人员解析(await 表格表列翻页获取(t, 翻页否)), //注意翻页会让t被remove,所以必须先搞定表名与数量
+            表名,
+            数量,
+            表列,
         };
     };
     const 表格列 = qsa(document, ".data-content table.table");
