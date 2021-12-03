@@ -1,23 +1,27 @@
 import { page, 页面打开等待, 页面文件注入 } from "../env/browser.mjs";
 import _ from "lodash";
-import { 公司数据, 搜索任务 } from "./tyc.mjs";
 import { 睡 } from "sno-utils";
-
+// import { HttpsProxyAgent } from "https-proxy-agent";
+import { 公司数据, 搜索任务 } from "../env/db.mjs";
 const main = await import("es-main").then(e => e.default(import.meta));
 if (main) {
+    // await fetch('https://www.tianyancha.com/search?key=金德管业集团有限公司', {agent}).then(e=>e.text())
     // await 天眼查搜索任务.updateMany(
     //     { 搜索结果: { $size: 0 } },
     //     { $unset: { 搜索于: 1 } }
     // );
     await 全量补搜索结果();
-    await 搜索爬取();
-    console.log("done");
+    // await 搜索爬取();
+    // console.log("done");
 }
 
 async function 全量补搜索结果() {
     const 补任务列 = await 搜索任务.多查列({ 搜索于: { $ne: null } });
     const 补搜索结果 = 补任务列
-        .map(e => e.搜索结果.map((e, i) => ({ ...e, 搜索结果序号: i + 1 })))
+        .map(e => {
+            console.log(e);
+            return e.搜索结果.map((e, i) => ({ ...e, 搜索结果序号: i + 1 }));
+        })
         .flat()
         .sort((a, b) => a.搜索结果序号 - b.搜索结果序号)
         .reverse();

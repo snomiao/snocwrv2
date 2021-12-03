@@ -7,7 +7,11 @@ const main = await import("es-main").then(e => e.default(import.meta));
 if (main) {
     console.table(await 代理IP提取入库());
     const ip = await 页面代理IP配置();
-    await 页面IP测试(ip);
+    await 页面打开等待("https://api.ipify.org/?format=json", 0);
+    // await 页面注入(() => (location = "https://www.tianyancha.com/"));
+    // await 页面打开等待("https://www.tianyancha.com/");
+    // await 页面IP测试(ip);
+    // await 页面打开等待("https://api.ipify.org/?format=json", 0);
     console.log("done");
 }
 async function 品易代理API余额警告() {

@@ -5,13 +5,13 @@ import db from "../env/db.mjs";
 import 公司爬取 from "./tyc_company.mjs";
 import 搜索爬取 from "./tyc_search.mjs";
 import 账号登录, { 天眼查账号表补 } from "./login.mjs";
-import { csv表列串 } from "./csv表列串.mjs";
+import { csv表列串 } from "../utils/csv表列串.mjs";
 
-export const 搜索任务 = db.任务v2_天眼查_公司搜索任务;
-export const 公司数据 = db.任务v2_天眼查_公司信息原始数据;
-export const 公司信息 = db.任务v2_天眼查_公司信息;
-export const 账号池 = db.任务v2_天眼查_账号池;
-export const 详情表 = 名义 => db["任务v2_天眼查_公司_" + 名义];
+export {搜索任务} from db
+export {公司数据} from db
+export {公司信息} from db
+export {账号池} from db
+export {详情表} from db
 
 // import { page } from "../browser.mjs";
 

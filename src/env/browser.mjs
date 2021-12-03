@@ -18,7 +18,7 @@ export const browser = await puppeteer.launch({
     dumpio: false,
     headless: false,
 });
-
+export default browser;
 export const page = await browser.newPage();
 
 // 开启请求拦截
@@ -34,7 +34,7 @@ page.on("request", async request => {
     }
     // 如果文件类型为image,则中断加载
     if (request.resourceType() === "image") {
-        console.log(`blocked load: ${request.url()}`);
+        // console.debug(`blocked load: ${request.url()}`);
         request.abort();
         return;
     }
@@ -158,10 +158,9 @@ await page.evaluateOnNewDocument(() => {
         return getParameter(parameter);
     };
 });
-export default browser;
 
 export async function 页面打开等待(url, 等毫秒 = 1000 + 500 * Math.random()) {
-    console.log(`正在打开${url}`);
+    console.log(`${new Date().toISOString()} 正在打开${url}`);
     await page.goto(url, { waitUntil: "networkidle2" });
     await 睡(等毫秒);
 }
