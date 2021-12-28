@@ -14,6 +14,7 @@ const apiBase = "https://dev.xxwl.snomiao.com:8443/api";
 const 计时 = async 名义函数表 =>
     await Promise.all(
         Object.entries(名义函数表).map(async ([名义, 函数]) => {
+            console.log(`${名义}中...`);
             console.time(名义), await 函数(), console.timeEnd(名义);
         })
     );
@@ -25,13 +26,15 @@ const amap = async (a, f) => {
     return r;
 };
 await 账号池.deleteMany({ 账号: "" });
-const 公司数据长度统计 = async () =>
-    await 公司数据.扫描更新({ 解析于: { $ne: null }, JSON串长度: null }, doc => {
+const 公司数据长度统计 = async () => {
+    return await 公司数据.扫描更新({ 解析于: { $ne: null }, JSON串长度: null }, doc => {
         const JSON串长度 = JSON.stringify(doc).length;
         const 标题链接 = doc.标题链接;
-        console.log({ 标题, 标题链接, JSON串长度 });
+        const 标题 = doc.标题链接;
+        console.table({ 标题, 标题链接, JSON串长度 });
         return { $set: { JSON串长度 } };
     });
+};
 const 搜索任务扫描补充 = async () => {
     return await 搜索任务.扫描更新(
         { 搜索结果使用于: { $lt: new Date("2021-12-19 00:43:47 GMT+8") } },
