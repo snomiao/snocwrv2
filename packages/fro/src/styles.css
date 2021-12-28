@@ -1,0 +1,48 @@
+.App {
+    font-family: sans-serif;
+    text-align: center;
+    font-size: calc(1vw + 1vh)
+  }
+  
+  h1 {
+    text-align: center;
+    font-weight: 100;
+  }
+  .status {
+    float: right;
+    font-size: 0.3em;
+    color: grey;
+  }
+  .status > * {
+    padding: 0.5em;
+  }
+  .loading {
+    color: white;
+    background: green;
+  }
+  .error {
+    color: white;
+    background: red;
+  }
+  .error {
+    color: white;
+    background: red;
+  }
+  
+  .jsonViewer {
+    margin: 0 1vw;
+    overflow: hidden;
+    /* max-height: 50vh; */
+    /* max-width: 100vw; */
+  }
+  .jsonViewer td {
+    padding: 0;
+    overflow: hidden;
+    /* max-width: 12vw; */
+    max-height: 2em;
+  }
+  
+  * {
+    border-radius: 0.3rem !important;
+  }
+  
