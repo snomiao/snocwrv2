@@ -4,29 +4,114 @@
 // @version      0.1.0
 // @description  rt
 // @author       snomiao@gmail.com
+// @match        https://www.tianyancha.com/
 // @match        https://www.tianyancha.com/company/*
 // @match        https://www.tianyancha.com/search*
 // @match        https://www.tianyancha.com/login*
 // @match        https://antirobot.tianyancha.com/captcha/verify?*
-// @grant        noneu
+// @match        https://www.tianyancha.com/usercenter/personalcenter*
+// @require      file:///C:\Users\snomi\snocwrv2\injector\tyc-crawler.user.mjs
+// @grant        GM.getValue
+// @grant        GM.setValue
+// @run-at       document-end
 // ==/UserScript==
+
+// 页面分析TODO
+// 董监高信息20
+// https://www.tianyancha.com/company/2286525?rnd=
+
+//
+// https://www.tianyancha.com/company/419978836#snocrawler
 
 (async () => {
     globalThis.clear?.();
-
+    console.log("天眼查爬虫加载中...");
     // capt....
-    const after_captcha_Q = location.search.match(/rnd=/);
-    const crawler_mark = "snocrawler";
-    const crawler_mark_Q = location.hash === `#${crawler_mark}`;
-    if (!(after_captcha_Q || crawler_mark_Q)) {
-        return null;
-    }
+    // request.transaction('分页表列表').
 
+    // const idb缓存读取 = ()
+    const db = await new Promise((resolve, reject) => {
+        const req = indexedDB.open("缓存");
+        req.onsuccess = event => resolve(req.result);
+        req.onerror = event => reject(req.error);
+
+        // req.result.transaction('缓存'). .commit()
+        // const db = req.result
+        // req.result.createObjectStore;
+    });
+    // const store = db.createObjectStore("store");
+    console.log(db);
+    // db.
+
+    const urlMatched = url => location.href.indexOf(url) + 1;
+
+    const 首页内 = location.href === "https://www.tianyancha.com/";
+    const 用户页面内 = urlMatched("https://www.tianyancha.com/usercenter/personalcenter");
+    const 验证页面内 = urlMatched("https://antirobot.tianyancha.com/captcha/verify?");
+    const 登录页面内 = urlMatched("https://www.tianyancha.com/login?");
+    const 搜索页面内 = urlMatched("https://www.tianyancha.com/search");
+    const 公司页面内 = urlMatched("https://www.tianyancha.com/company/"); 
+
+    // TODO: 董监高信息需要对 tab 再分解
+    const 表名大类 = ["公司公示", "抽查检查", "经营异常", "历史经营异常", "抖音/快手", "询价评估", "严重违法", "股权质押"];
+    const 未能爬取表名列 = (e => e.trim().split(/\s+/))(`
+        历史股东镜像 历史高管镜像 历史经营异常 历史网站备案 历史被执行人 // 特殊格式
+        主要人员 股东信息 // 未知...
+        供应商 //特殊2
+        新闻舆情 //特殊3
+        双随机抽查 资质资格 //多列
+        `); // 格式需要适配
+    const 需要红钻表名列 = ["涉诉关系"];
+    const 翻页不正常表名列 = ["分支机构", "司法拍卖", "资质证书", "法院公告", "历史股东"]; // 容易在第2页出错
+    const 空表表列 = ["网站备案"]; // 返回空表
+
+    const 地址从验证码返回 = !!location.search.match(/rnd=/);
+    const 登录或验证标记 = 登录页面内 || 验证页面内;
+    const 爬虫标记串 = "snocrawler";
+    const 地址爬虫标记 = location.hash === `#${爬虫标记串}`;
+    const DEBUG标记 = globalThis.debug_flag || location.hash.match("DEBUG");
+    const 爬取标记 = DEBUG标记 || 地址从验证码返回 || 地址爬虫标记 || 登录或验证标记;
+
+    let 开始爬取等待毫秒 = 2e3; // 确保加载完成
+    let 翻页等待毫秒 = 1e3;
+
+    const softAlert = (...msg) => {
+        document.title = new Date().toISOString().slice(11) + msg.join("");
+        console.log(...msg);
+    };
     const 睡 = ms => new Promise(resolve => setTimeout(resolve, ms));
-    const qsa = (ele, sel) => [...ele?.querySelectorAll(sel)];
+    const qsa = (ele, sel = "*") => [...ele?.querySelectorAll(sel)];
+    const 元素搜索 = (pattern, ele = document) =>
+        qsa(ele)
+            .reverse()
+            .find(e => e?.textContent?.match?.(pattern));
+    const 整数范围列 = (min, max) => [...Array(max - min + 1).keys()].map(e => e + min);
     const 文本获取 = e => e?.innerText || e?.textContent || "";
     const 标题获取 = e => 文本获取(e);
     const 标题链接获取 = e => e?.href;
+    const 账号信息获取 = () => {
+        const cookie = Object.fromEntries(document.cookie.split(/; ?/).map(e => e.split("=")));
+        const { state, vipManager, mobile, ...other } = JSON.parse(decodeURIComponent(cookie["tyc-user-info"]));
+        return { state, vipManager, mobile, ...other };
+    };
+    const 用户名获取 = async () => {
+        let got用户名 = "";
+        let trytimes = 30;
+        while (!got用户名 && trytimes-- > 0) {
+            got用户名 = document.querySelector(".nav-user-name")?.textContent;
+            await 睡(1e3); // 用户名间隔ms
+        }
+        if (!got用户名) {
+            const errmsg = "未能获取到用户名，请检查登录状态";
+            softAlert(errmsg);
+            await 睡(2e3);
+            location.reload(); // 也许重载时会跳转到登录页面
+            let solved = 0;
+            debugger;
+            if (!solved) throw new Error(errmsg);
+        }
+        return got用户名;
+    };
 
     const amap = async (a, f) => {
         const r = [];
@@ -35,76 +120,151 @@
         }
         return r;
     };
-    const apiGet = async (url, search = {}) =>
-        await fetch("https://dev.xxwl.snomiao.com:8443/api/tyc/account/get", {
-            mode: "cors",
-            credentials: "include",
+    const pmap = async (a, f) => {
+        return await Promise.all(a.map(f));
+    };
+    const jsonpParse = e => {
+        const _ = json => json;
+        return eval(e);
+    };
+    const apiBase = "https://dev.xxwl.snomiao.com:8443/api";
+    const corsOptions = {
+        mode: "cors",
+        credentials: "include",
+    };
+    globalThis.snocrawler_token =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyLnlKjmiLflkI0iOiLlpKnnnLzmn6XmlbDmja7lop7ooaUiLCJpYXQiOjE2Mzk5MTQ0NjUsImV4cCI6MTY0MTIxMDQ2NX0.dCoOZuzdvoIH5e1I9r3BqVO6iLrKXMhcrakEvTdjZBE";
+    globalThis.snocrawler_token ||= await globalThis?.GM?.getValue("snocrawler-token", "snocrawler-client-gm");
+    globalThis.snocrawler_token ||= "snocrawler-client";
+    await globalThis?.GM?.setValue("snocrawler-token", globalThis.snocrawler_token);
+    const authHeaders = {
+        Authorization: "Basic " + globalThis.snocrawler_token,
+    };
+    const apiFetch = async (path, body = null) =>
+        await fetch(apiBase + path, {
+            ...corsOptions,
+            headers: { ...authHeaders },
+            ...(body && {
+                method: "post",
+                headers: { "content-type": "application/json", ...authHeaders },
+                body: JSON.stringify(body),
+            }),
         })
             .then(e => e.text())
-            .then(e => {
-                const _ = json => json;
-                return eval(e);
-            });
-    if (location.href.indexOf("https://www.tianyancha.com/login") + 1) {
-        const 可用账号 = await apiGet(
-            "https://dev.xxwl.snomiao.com:8443/api/tyc/account/get"
-        );
-        // if (!可用账号) {
-        //     throw new Error("未能获取可用账号");
-        // }
-        const docqs = sel => document.querySelector(sel);
-        const qsa = (ele, sel) => [...ele?.querySelectorAll(sel)];
-        const 文本获取 = e => e?.innerText || e?.textContent || "";
-        const 睡 = 毫秒 => new Promise(resolve => setTimeout(resolve, 毫秒));
+            .then(jsonpParse);
+    const apiGet = async (api, search = {}) => await apiFetch(!search ? api : `${api}?${new URLSearchParams(search).toString()}`);
+    const apiPost = async (api, body = null) => await apiFetch(api, body);
 
-        await 睡(1000);
-        const 密码登录标签 = docqs('[tyc-event-ch="Login.PasswordLogin"]');
-        if (!密码登录标签) throw new Error("未找到密码登录选项");
-        密码登录标签.click();
-        await 睡(1000);
+    const 报错 = async err => {
+        console.error(err);
+        softAlert(JSON.stringify(err, null, 4));
+    };
 
-        const 手机号输入框 = docqs("#mobile");
-        const 密码输入框 = docqs("#password");
-        if (!手机号输入框) throw new Error("未找到手机号输入框");
-        if (!密码输入框) throw new Error("未找到密码输入框");
-
-        if (!可用账号) {
-            // injectInput = { phone: "15821483509", password: "zzzz8888" };
-            手机号输入框?.click?.();
-            alert("inject obj not found");
-            throw new Error("未能获取可用账号");
+    const 搜索任务获取 = async () => {
+        const task = await apiGet("/search/task");
+        // TODO (20211216.031123) 修一下这个时间附近的几个无效搜索，搜索词为id，列表大概是空的
+        const nextUrl = `https://www.tianyancha.com/search?key=${task?.主体名称 ?? task?.搜索词 ?? task?._id}`;
+        if (!nextUrl) {
+            softAlert("未能抓取下一页任务");
+            let solved = 0;
+            debugger;
+            if (!solved) throw new Error({ code: 1, msg: "未能抓取下一页任务" });
         }
 
-        手机号输入框.value = 可用账号.账号;
-        密码输入框.value = 可用账号.密码;
-        await 睡(1000);
-        const 密码登录按钮 = docqs(
-            '[tyc-event-ch="Login.PasswordLogin.Login"]'
-        );
-        密码登录按钮.click();
-        await 睡(5000);
-        const 需要验证 = [...document.querySelectorAll("*")]
-            .reverse()
-            .find(e => e.textContent.match("请先完成下方验证"));
-        if (需要验证) {
-            alert("滑块验证TODO");
-            throw new Error("滑块验证TODO");
+        return `${nextUrl}#${爬虫标记串}`;
+    };
+    const 公司爬取任务获取 = async function () {
+        const task = await apiGet("/company/task");
+        const nextUrl = task?.标题链接;
+        if (!nextUrl) {
+            softAlert("未能抓取下一页任务");
+            let solved = 0;
+            debugger;
+            if (!solved) throw new Error({ code: 1, msg: "未能抓取下一页任务" });
         }
+        return `${nextUrl}#${爬虫标记串}`;
+    };
+
+    const 公司爬取任务爬取 = async () => !DEBUG标记 && (location = await 公司爬取任务获取());
+    const 搜索任务爬取 = async () => !DEBUG标记 && (location = await 搜索任务获取());
+    const 新公司爬取任务爬取 = async () => window.open(await 公司爬取任务获取(), "_blank");
+    const 新搜索任务爬取 = async () => window.open(await 搜索任务获取(), "_blank");
+
+    // ui
+    const ui = Object.assign(document.createElement("div"), {
+        innerHTML: `
+            <div 
+                id='tycrui'
+                style='
+                    position: fixed;
+                    left: 0vw; top:30vh;
+                    width: 20vw; height: 20vh;
+                    background: #88AAAAAA;
+                    color: white;
+                    z-index: 99999999;
+                '
+            >
+                <button>next-search</button>
+                <button>next-company</button>
+                <button>debug-mode-set</button>
+            </div>
+        `,
+    });
+    [...ui.querySelectorAll("*")]
+        .reverse()
+        .find(e => e.textContent === "next-company")
+        .addEventListener("click", 新公司爬取任务爬取, false);
+    [...ui.querySelectorAll("*")]
+        .reverse()
+        .find(e => e.textContent === "next-search")
+        .addEventListener("click", 新搜索任务爬取, false);
+    [...ui.querySelectorAll("*")]
+        .reverse()
+        .find(e => e.textContent === "debug-mode-set")
+        .addEventListener("click", () => (globalThis.debug_flag = 1), false);
+    document?.querySelector("#tycrui")?.parentElement?.remove();
+    document.body.appendChild(ui);
+
+    //
+
+    console.log("加载完成");
+
+    if (用户页面内) {
+        // 会员:无
+        const 用户名 = await 用户名获取();
+        const VIP到期时间串 = 元素搜索("到期时间：")?.textContent?.match(/到期时间：(.*)/)?.[1];
+        const VIP到期时间 = VIP到期时间串 ? new Date(VIP到期时间串 + " 00:00:00.000 GMT+8") : null;
+        const VIP过期 = !!元素搜索(/开通VIP，立享/);
+        const 账号 = 账号信息获取().mobile;
+        const 补表 = { 账号, 用户名, ...(VIP到期时间 && { VIP到期时间 }), ...(VIP过期 && { 错误: "VIP过期", 错误于: new Date() }) };
+        console.table(补表);
+        const 用户状态上报结果 = await apiPost("/put", { 任务v2_天眼查_账号池: { 索引: { 账号: 1 }, 表列: [补表] } });
+        console.table(用户状态上报结果);
+        // logout
+
+        if (VIP过期) {
+            // 跳到登录页面
+            location = "https://www.tianyancha.com/login?";
+            // 元素搜索("退出登录").click();
+        }
+        // debugger
+        // document.cookie.split(";").forEach(function(c) { document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); });
+        // debugger;
+        // location.reload();
+        // throw new Error("reloading");
     }
-
-    if (
-        location.href.indexOf(
-            "https://antirobot.tianyancha.com/captcha/verify?return_url="
-        ) + 1
-    ) {
-        document.title = `验证码识别中： ${document.title}`;
+    if (!爬取标记) {
+        console.log("未使用爬虫标记，退出");
+        // return null;
+        throw new Error("未使用爬虫标记，退出");
+    }
+    if (验证页面内) {
+        document.title = `验${document.title}`;
         const captchaClick = async pos => {
             await 睡(2000);
             const vecAdd = (a, b) => a.map((_, i) => a[i] + b[i]);
             const ipElement = document.querySelector("div.ip");
-            const [A图, B图] = [
-                ...ipElement.parentElement.querySelectorAll("img"),
-            ];
+            const [A图, B图] = [...ipElement.parentElement.querySelectorAll("img")];
             // const [A源, B源] = [A图, B图].map(e => e.getAttribute("src"));
             const offset = (({ x, y }) => [x, y])(B图.getClientRects()[0]);
             console.log(offset);
@@ -153,9 +313,7 @@
             // }
             await 睡(3000); // wait for captcha
             const ipElement = document.querySelector("div.ip");
-            const [A图, B图] = [
-                ...ipElement.parentElement.querySelectorAll("img"),
-            ];
+            const [A图, B图] = [...ipElement.parentElement.querySelectorAll("img")];
             // const [A源, B源] = [A图, B图].map(e => e.getAttribute("src"));
             const info = Object.fromEntries(
                 ipElement.textContent
@@ -187,23 +345,16 @@
             //     { src: B源, y: 30 },
             // ]);
             const 验证码数据 = { 验证码源, ...info };
-            const 验证码请求结果 = await fetch(
-                "https://dev.xxwl.snomiao.com:8443/api/captcha",
-                {
-                    method: "post",
-                    headers: { "content-type": "application/json" },
-                    mode: "cors",
-                    credentials: "include",
-                    body: JSON.stringify({ ...验证码数据 }),
-                }
-            )
-                .then(e => e.text())
-                .then(e => {
-                    const _ = json => json;
-                    return eval(e);
-                });
-            if (验证码请求结果.code !== 0)
-                throw new Error(验证码请求结果.message);
+            const 请求数据 = { ...验证码数据 };
+            const 请求路径 = "/captcha";
+            const 验证码请求结果 = await apiPost(请求路径, 请求数据);
+
+            if (验证码请求结果.code !== 0) {
+                if (验证码请求结果?.message?.match?.(/工人不足/)) location.reload();
+                // debugger;
+                softAlert(验证码请求结果.message);
+                if (!globalThis.errorSolved) throw new Error(验证码请求结果.message);
+            }
             console.log(验证码请求结果);
 
             const 点击坐标列 = 验证码请求结果.data.result
@@ -222,8 +373,12 @@
         };
         await captchaProcess();
     }
-
-    if (location.href.indexOf("https://www.tianyancha.com/login") + 1) {
+    if (登录页面内) {
+        console.log("正在登录");
+        const 可用账号 = await apiGet("/tyc/account/get");
+        // if (!可用账号) {
+        //     throw new Error("未能获取可用账号");
+        // }
         const docqs = sel => document.querySelector(sel);
         const qsa = (ele, sel) => [...ele?.querySelectorAll(sel)];
         const 文本获取 = e => e?.innerText || e?.textContent || "";
@@ -239,25 +394,94 @@
         const 密码输入框 = docqs("#password");
         if (!手机号输入框) throw new Error("未找到手机号输入框");
         if (!密码输入框) throw new Error("未找到密码输入框");
-        if ("undefined" === typeof injectInput) {
-            // injectInput = { phone:"15821483509", password: "zzzz8888" };
+
+        if (!可用账号) {
             手机号输入框?.click?.();
-            alert("inject obj not found");
-            return;
+            softAlert("未能获取可用账号");
+            throw new Error("未能获取可用账号");
         }
-        手机号输入框.value = injectInput.phone;
-        密码输入框.value = injectInput.password;
+
+        手机号输入框.value = 可用账号.账号;
+        密码输入框.value = 可用账号.密码;
         await 睡(1000);
-        const 密码登录按钮 = docqs(
-            '[tyc-event-ch="Login.PasswordLogin.Login"]'
-        );
+        const 密码登录按钮 = docqs('[tyc-event-ch="Login.PasswordLogin.Login"]');
         密码登录按钮.click();
+        await 睡(2000);
+        // TODO
+        // 1. 加载html2canvas模块
+        // 2. 截图给 api
+        // 3. 滑
+        const 需要验证 = 元素搜索("请先完成下方验证");
+        const optMake = (x, y) => ({
+            isTrusted: true,
+            bubbles: true,
+            button: 0,
+            buttons: 1,
+            cancelBubble: false,
+            cancelable: true,
+            clientX: x,
+            clientY: y,
+            movementX: 0,
+            movementY: 0,
+            x: x,
+            y: y,
+        });
+        const 元素拖动 = async (元素, 相对位置 = [0, 0]) => {
+            const { x, y, width: w, height: h } = 元素.getClientRects()[0];
+            const [cx, cy] = [x + w / 2, y + h / 2];
+            const [tx, ty] = [相对位置[0] + cx, 相对位置[1] + cy];
+            元素.dispatchEvent(new MouseEvent("mouseover", optMake(cx, cy)));
+            元素.dispatchEvent(new MouseEvent("mousedown", optMake(cx, cy)));
+            const start = +new Date();
+            const t1 = 2000 + Math.random() * 500;
+            while (1) {
+                const dt = +new Date() - start;
+                const percent = dt / t1;
+                if (percent > 1) break;
+                const p = Math.sqrt(Math.sqrt(percent));
+                const q = 1 - p;
+                const [nx, ny] = [cx * q + tx * p, cy * q + ty * p];
+                console.log(nx, ny);
+                元素.dispatchEvent(new MouseEvent("mouseover", optMake(nx, ny)));
+                元素.dispatchEvent(new MouseEvent("mousedown", optMake(nx, ny)));
+                await 睡(64);
+            }
+            console.log(cx, cy, tx, ty);
+            await 睡(100);
+            元素.dispatchEvent(new MouseEvent("mouseover", optMake(tx, ty)));
+            元素.dispatchEvent(new MouseEvent("mouseup", optMake(tx, ty)));
+        };
+        const 过验证码 = async () => {
+            const { default: html2canvas } = await import("https://cdn.jsdelivr.net/npm/html2canvas@1.3.3/dist/html2canvas.esm.js");
+            const canvas = await html2canvas(document.querySelector(".gt_widget"));
+            const img = canvas.toDataURL();
+            const knob = document.querySelector(".gt_slider_knob");
+            await 元素拖动(knob, [200, 0]);
+        };
+        globalThis.catt = () => 过验证码();
+        if (需要验证) {
+            await 过验证码();
+            softAlert("滑块验证TODO");
+
+            // if (!globalThis.errorSolved) throw new Error("滑块验证TODO");
+        }
         await 睡(1000);
-        return true;
+        // 账号错误收集上报
+        const 暂停密码登录模式 =
+            /系统检测账号 (\d+) 近期被多个设备登录，可能密码已泄露，为确保账号安全，近期已为您暂停密码登录方式，请使用其他登录方式。/;
+        const 错误元素 = 元素搜索(暂停密码登录模式);
+        if (错误元素) {
+            const [错误, 账号] = 错误元素.textContent.match(暂停密码登录模式);
+            const 错误上报补表 = { 账号, 错误, 错误于: new Date() };
+            const 错误上报返回 = await apiPost("/put", { 任务v2_天眼查_账号池: { 索引: { 账号: 1 }, 表列: [错误上报补表] } });
+            console.log(错误上报补表, 错误上报返回);
+            location.reload();
+        }
     }
-    if (location.href.indexOf("https://www.tianyancha.com/search") + 1) {
+    if (搜索页面内) {
         globalThis.document.title = `爬取中: ${globalThis.document.title}`;
-        await 睡(5e3 + 10e3 * Math.random());
+        const 搜索页面等待毫秒 = 3e3 + 1e3 * Math.random();
+        await 睡(搜索页面等待毫秒);
 
         // search
         if (qsa(document, '*[tyc-event-ch="Login.PasswordLogin"]').length) {
@@ -277,102 +501,42 @@
 
         const 搜索词 = document.querySelector("[type='search']").value;
         const 标题链接 = location.origin + location.pathname;
-        const 数据库录入结果 = await fetch(
-            "https://dev.xxwl.snomiao.com:8443/api/tyc/put",
-            {
-                method: "post",
-                headers: { "content-type": "application/json" },
-                // headers: { "content-type": "text/plain" },
-                mode: "cors",
-                credentials: "include",
-                body: JSON.stringify({
-                    搜索任务表列: [
-                        {
-                            _id: 搜索词,
-                            标题链接,
-                            搜索于: new Date(),
-                        },
-                    ],
-                    公司数据表列: [...搜索结果表列],
-                }),
-            }
-        )
-            .then(e => e.text())
-            .then(e => {
-                const _ = json => json;
-                return eval(e);
-            });
+        const 数据库录入结果 = await apiPost("/put", {
+            任务v2_天眼查_公司搜索任务: {
+                索引: { 搜索词: 1 },
+                表列: [
+                    {
+                        // _id: 搜索词,
+                        搜索词,
+                        搜索结果: 搜索结果表列,
+                        标题链接,
+                        搜索于: new Date(),
+                    },
+                ],
+            },
+            任务v2_天眼查_公司信息原始数据: { 索引: { 标题链接: 1 }, 表列: [...搜索结果表列] },
+        });
 
         if (数据库录入结果?.code === 0) {
-            // 爬下一个
-            await nextSearchGo();
+            await 搜索任务爬取();
         } else {
             console.log(数据库录入结果);
-            alert(JSON.stringify(数据库录入结果, null, 4));
+            softAlert(JSON.stringify(数据库录入结果, null, 4));
         }
-
-        return 搜索结果表列;
-
-        async function nextSearchGo() {
-            const task = await fetch(
-                "https://dev.xxwl.snomiao.com:8443/api/search/task",
-                { mode: "cors", credentials: "include" }
-            )
-                .then(e => e.text())
-                .then(e => {
-                    const _ = json => json;
-                    return eval(e);
-                });
-            const nextUrl = `https://www.tianyancha.com/search?key=${task?._id}`;
-            if (!nextUrl) {
-                const err = {
-                    code: 1,
-                    msg: "未能抓取下一页搜索任务，请检查API服务器",
-                };
-                console.error(err);
-                alert(JSON.stringify(err, null, 4));
-            }
-            location = `${nextUrl}#${crawler_mark}`;
-        }
+        // return 搜索结果表列;
     }
-    // company
-    if (location.href.indexOf("https://www.tianyancha.com/company/") + 1) {
-        const 开始爬取等待毫秒 = 10e3; // 确保加载完成
-        const 用户名获取间隔毫秒 = 1e3;
-        const 上翻页间隔毫秒 = 3e3;
-        const 下翻页间隔毫秒 = 3e3;
+    if (公司页面内) {
         const 睡 = ms => new Promise(resolve => setTimeout(resolve, ms)); // 用户名间隔ms
         const ofe = Object.fromEntries;
         const qsa = (ele, sel) => [...ele.querySelectorAll(sel)];
-        const rf2 = ls =>
-            ls.slice(ls.length / 2).map((_, i) => [ls[2 * i], ls[2 * i + 1]]);
+        const rf2 = ls => ls.slice(ls.length / 2).map((_, i) => [ls[2 * i], ls[2 * i + 1]]);
         const 文本获取 = e => e?.innerText || e?.textContent || "";
-        const 用户名获取 = async () => {
-            let got用户名 = "";
-            let trytimes = 10;
-            while (!got用户名 && trytimes-- > 0) {
-                got用户名 =
-                    document.querySelector(".nav-user-name")?.textContent;
-                await 睡(用户名获取间隔毫秒); // 用户名间隔ms
-            }
-            if (!got用户名) {
-                const errmsg = "未能获取到用户名，请检查登录状态";
-                alert(errmsg);
-                throw new Error(errmsg);
-            }
-            return got用户名;
-        };
         const 页面内容账号需求标识获取 = async () => ({
-            红钻需求: !!qsa(document, "*")
-                .reverse()
-                .find(e => e.textContent.match(/风险红钻·VIP尊享/)),
-            VIP需求: !!qsa(document, "*")
-                .reverse()
-                .find(e => e.textContent.match(/开通VIP · 查看.*/)),
-            登录需求: !!qsa(document, "*")
-                .reverse()
-                .find(e => e.textContent.match(/登录后查看更多信息/)),
+            红钻需求: 元素搜索(/风险红钻·VIP尊享/),
+            VIP需求: 元素搜索(/开通VIP · 查看.*/),
+            登录需求: 元素搜索(/登录后查看更多信息/),
         });
+        // https://www.tianyancha.com/company/419978836#snocrawler
         const 复杂表体向格列列解析 = tbody =>
             [...tbody.querySelectorAll("tr")]
                 .map((tr, y) => [...tr.querySelectorAll("td")])
@@ -430,10 +594,7 @@
                     .filter(e => e.href.match(/^http/)) // ignore javascript
                     .map(链接串化),
             ].join("\n");
-        const 单元格对解析 = ([ktd, vtd]) => [
-            键文本获取(ktd),
-            文本与链接获取(vtd),
-        ];
+        const 单元格对解析 = ([ktd, vtd]) => [键文本获取(ktd), 文本与链接获取(vtd)];
         const 向父级查找 = (元素, sel) => {
             while ((元素 = 元素?.parentElement)) {
                 const r = 元素.querySelector(sel);
@@ -441,18 +602,39 @@
             }
         };
         const 表名与数量获取 = 元素 => {
+            const 入口元素 = 元素;
             while ((元素 = 元素?.parentElement)) {
-                const 标题sel = ":scope>.data-title,.data-header>.data-title";
-                const 数量sel = ":scope>.data-count,.data-header>.data-count";
-                const 表名 = 文本获取(元素?.querySelector(标题sel));
+                if (元素.classList.contains("block-data-group")) {
+                    debugger;
+                    throw new Error("表名元素超界，请修改此处代码");
+                }
+                const 标题sel = ":scope>.data-title,:scope>.data-header>.data-title";
+                const 数量sel = ":scope>.data-count,:scope>.data-header>.data-count";
+                const 标题元素 = 元素?.querySelector(标题sel);
+                const 入口元素是表格 = 入口元素.classList.contains("table");
+                const 入口元素是标题 = 标题元素 === 入口元素;
+                // ensure counts real, avoid bare data-title without counts
+                const 标题元素文本节点文本 = 元素?.querySelector(":scope>.data-header")?.firstChild?.textContent;
+                const 图标标题元素 = 元素?.querySelector(":scope>.data-title>i.tic");
+                const 图标类名转换表 = {
+                    "tic-hezuofengxianfenxi": "合作风险分析",
+                    "tic-shendufengxianfenxi": "深度风险分析",
+                    "tic-jingzhengfengxian": "竞争风险",
+                };
+                const 图标标题元素文本 = Object.entries(图标类名转换表).find(([类名, _含义]) =>
+                    图标标题元素?.classList.contains(类名)
+                )?.[1];
+                const 表名 = 文本获取(标题元素) || 标题元素文本节点文本 || 图标标题元素文本;
+                if (!(入口元素是标题 || 入口元素是表格)) continue;
                 const 数量串 = 文本获取(元素?.querySelector(数量sel));
-                if (表名) return { 表名, 数量: Number(数量串) || 0 };
+                // const 工商信息数量修复 = 表名 === "工商信息" ? 1 : 0;
+                const 数量 = Number(数量串 || 0);
+                if (表名) return { 表名, 数量 };
             }
             return null;
         };
         const 表列人员解析 = 表列 => {
-            const 式 =
-                /\[(.*?)\]\(\s*?(https?\:\/\/www.tianyancha.com\/human\/\S*?)\s*?\)/;
+            const 式 = /\[(.*?)\]\(\s*?(https?\:\/\/www.tianyancha.com\/human\/\S*?)\s*?\)/;
             const 键值对对链接解析 = ([k, v]) => {
                 // 注意此处v可能不是string，故match可能不存在
                 const m = v?.match?.(式);
@@ -463,8 +645,7 @@
                     [k + "_链接", m[2]],
                 ];
             };
-            const 表处理 = 表 =>
-                ofe(Object.entries(表).flatMap(键值对对链接解析));
+            const 表处理 = 表 => ofe(Object.entries(表).flatMap(键值对对链接解析));
             return 表列?.map?.(表处理);
         };
         const 一般表格表列获取尝试 = t => {
@@ -515,87 +696,186 @@
             });
             return re;
         };
-        const 表格表列翻页获取 = async (t_byRef, 翻页否 = true) => {
-            const tSel = `.${t_byRef.className.trim().split(/ +/).join(".")}`;
-            const dc = 向父级查找(t_byRef, ".data-content").parentElement;
-            if (!dc) throw new Error(".data-content not found");
-            dc.scrollIntoView();
+        // TODO: 另一种格式的表格css： .holderMirror-fixed-table
+        const 各种表格表列获取尝试 = tt =>
+            chart表格表列获取尝试(tt) || 对键表格表列获取尝试(tt) || 历史表格表列获取尝试(tt) || 一般表格表列获取尝试(tt);
+
+        const 表格表列翻页获取 = async (表元素引用, { 表名, 数量, 页数限制 = +Infinity }) => {
+            const 表选择器 = `.${表元素引用.className.trim().split(/ +/).join(".")}`;
+            const block_data = 向父级查找(表元素引用, ".data-content").parentElement;
+            if (!block_data) throw new Error(".data-content not found");
+            block_data.scrollIntoView();
             // page detect
-            const dcSel = (s = "") => dc.querySelector(s);
-            const pagerSel = (s = "") => dcSel(`.company_pager ${s}`);
-            const pagerExists = !!pagerSel();
-            // try go back to first page
-            while (pagerExists) {
-                const prevBtn = pagerSel("a.-prev");
-                if (!prevBtn) break;
-                prevBtn.click();
-                await 睡(上翻页间隔毫秒); // 用户名间隔ms
-            }
-            const r = [];
+            const bdSel = (s = "") => block_data.querySelector(s);
+            const pagerSel = (s = "") => bdSel(`.pagination ${s}`.trim());
+
+            // 缓存
+            // const 分页表列表缓存名称 = `${location.pathname}#${表名}_分页表列表`;
+            // const 缓存分页表列表 = await (async e => e && JSON.parse(e))(localStorage.getItem(分页表列表缓存名称)).catch();
+            // 缓存分页表列表 && console.log(`${分页表列表缓存名称} 缓存读取到长度为 ${Object.values(缓存分页表列表).flat().length}`);
+
+            const 分页表列表 = {};
+            const 分页表列表缓存尝试 = async () => {
+                try {
+                    return localStorage.setItem(分页表列表缓存名称, JSON.stringify(分页表列表));
+                } catch (e) {
+                    return null;
+                }
+            };
+
             while (1) {
-                const 所在分页 = pagerSel("a.-current")?.textContent;
-                const tt = dcSel(tSel);
-                if (!tt) debugger;
-                const rp =
-                    chart表格表列获取尝试(tt) ||
-                    对键表格表列获取尝试(tt) ||
-                    历史表格表列获取尝试(tt) ||
-                    一般表格表列获取尝试(tt);
-                if (!rp) {
-                    console.log(tt);
-                    throw new Error("no matched table format");
+                // 分页处理
+                const 所在分页 = Number(pagerSel("a.-current")?.textContent || "1");
+                // 表格元素获取
+                const 表格 = bdSel(表选择器);
+                if (!表格) {
+                    if (DEBUG标记) debugger;
+                    throw new Error("表格元素丢失");
                 }
-                r.push(
-                    ...rp.map(e => ({ ...e, ...(所在分页 && { 所在分页 }) }))
-                );
-                const nextBtn = pagerSel("a.-next");
-                if (nextBtn && 翻页否) {
-                    nextBtn.click();
-                    await 睡(下翻页间隔毫秒); //等10秒翻页
-                } else {
-                    break; // end...
+                // 表格内容爬取
+                const 表格表列 = 各种表格表列获取尝试(表格);
+                if (!表格表列) {
+                    console.log(表格);
+                    softAlert("未知的表格表列形式");
+                    if (DEBUG标记) debugger;
+                    throw new Error("未知的表格表列形式");
+                }
+                // 保存
+                const 所在分页表列 = 表格表列.map(e => ({ ...e, ...(所在分页 && { 所在分页 }) }));
+                分页表列表[所在分页] = 所在分页表列;
+                await 分页表列表缓存尝试().catch();
+
+                // 翻页处理
+                const pagerbar = bdSel(`.pagination`);
+                if (!pagerbar) break;
+                const 稀疏可点击页面列 = [...pagerbar.querySelectorAll("a.num")]
+                    .map(a => ({ a, 页码: Number(a.textContent.replace(/\D/g, "")) }))
+                    .filter(e => e.页码);
+                const [最小页, 最大页] = [稀疏可点击页面列[0], [...稀疏可点击页面列].reverse()[0]];
+                const 已爬页码 = Object.keys(分页表列表).map(e => Number(e));
+                const 剩余页码 = 整数范围列(最小页.页码, 最大页.页码).filter(页码 => !已爬页码.includes(页码));
+                if (!剩余页码.length) break; // 爬取完成
+                const [剩余页码最前, 剩余页码最后] = [剩余页码[0], [...剩余页码].reverse()[0]];
+                const 剩余页码距离 = 页码 => Math.min(Math.abs(页码 - 剩余页码最前), Math.abs(页码 - 剩余页码最后));
+                // const 剩余页码距离 = 页码 => Math.abs(页码 - 剩余页码最前);
+                const 函续 =
+                    (...函列) =>
+                    值 =>
+                        函列.reduce((值, 函) => 函(值), 值);
+                const 按什么相减 = 函数 => (a, b) => 函数(a) - 函数(b);
+                const 最近可点击页面 = 稀疏可点击页面列.sort(按什么相减(函续(a => a.页码, 剩余页码距离)))[0];
+                const 下一页按钮 = 最近可点击页面.页码 <= 页数限制 && 最近可点击页面?.a;
+                下一页按钮.click();
+                let k = 0;
+                let timeout = 0;
+                while (!(Number(pagerSel("a.-current")?.textContent) === 最近可点击页面.页码)) {
+                    console.log(`${表名}等待第${最近可点击页面.页码}页加载中 ${k || ""}...`);
+                    bdSel(".data-content").scrollIntoView(1);
+                    await 睡(翻页等待毫秒);
+                    if (k++ >= 30) {
+                        console.log(表名, "翻页出错，分裂新任务");
+                        softAlert(`翻页出错于${表名}`);
+                        // await 新公司爬取任务爬取();
+                        // location.reload()
+                        if (翻页不正常表名列.includes(表名)) {
+                            // ignore error of these ...
+                            timeout = 0;
+                        } else {
+                            timeout = 1;
+                        }
+                        break;
+                    }
+                    标题更新();
+                    if (bdSel(".data-content").innerHTML === "") {
+                        break; // 爬完了相当于
+                    }
+                }
+                if (数量 && 数量 < (最大页.页码 - 1) * 10) {
+                    // 明显的页码标记错误，最大页没有内容，此时认为已经爬完
+                    break;
+                }
+                if (bdSel(".data-content").innerHTML === "") {
+                    break; // 爬完了相当于
+                }
+                if (timeout) {
+                    debugger;
+                    throw new Error("翻页出错，分裂新任务");
                 }
             }
-            // if (pagerExists) debugger;
-            return r;
+            return Object.values(分页表列表).flat();
         };
         // TODO 改成先查所有data-content再处理table
+
         const 表格解析 = async t => {
             const { 表名, 数量 } = 表名与数量获取(t);
-            const 关键表 =
-                /工商信息|主要人员|股东信息|对外投资|最终受益人|变更记录|开庭公告|法律诉讼/;
-            const 翻页否 = !!表名?.match?.(关键表);
-
+            const 关键表 = /工商信息|主要人员|股东信息|对外投资|最终受益人|变更记录|开庭公告|法律诉讼/;
+            const 异常表 = /资质资格|董监高信息|双随机抽查/;
+            const 跳过否 = !!表名?.match?.(异常表); // 暂时禁用
+            if (跳过否) {
+                return { 表名, 数量, 表列: "解析TODO" };
+            }
+            const 翻页否 = !!表名?.match?.(关键表); // 暂时禁用
             //注意翻页行为会让t被remove,所以必须先搞定表名与数量
-            const 表列 = 表列人员解析(await 表格表列翻页获取(t, 翻页否));
-            return {
-                表名,
-                数量,
-                表列,
-            };
+            const 表列 = 表列人员解析(await 表格表列翻页获取(t, { 表名, 数量, 页数限制: +Infinity }));
+            const 表列按函数去重 = (表列, 相等函数) => 表列.filter((a, index) => index === 表列.findIndex(b => 相等函数(a, b)));
+            const 表列针对序号去重 = 表列 => (表列?.[0]?.序号 ? 表列按函数去重(表列, (a, b) => a.序号 === b.序号) : 表列);
+
+            // 由于网络延迟问题可能某页会重复爬取，于是对表列去重尝试解决
+            const 去重表列 = 表列针对序号去重(表列);
+            // 爬取的比天眼查统计到的多1个，可能是天眼查数量统计更新不及时，这里尝试修正一下
+            const 比率误差修复尝试 = (实, 测, 比率 = 0.1) => (Math.abs(实 - 测) / 实 <= 比率 ? 实 : 测);
+            const 个数误差修复尝试 = (实, 测, 个数 = 2) => (Math.abs(实 - 测) <= 个数 ? 实 : 测);
+            const 修补数量 = 个数误差修复尝试(去重表列.length, 比率误差修复尝试(去重表列.length, 数量 || 表列.length));
+            let 错误 = null;
+            if (去重表列.length < 修补数量) {
+                元素搜索(表名).scrollIntoView();
+                错误 = 表名 + "数据可能未解析完整" + location.href.replace(/#.*/, "");
+                softAlert(错误);
+                console.log(表名, 去重表列, 去重表列.length, 数量);
+                const 忽略表 = 翻页不正常表名列.includes(表名);
+                const 超大表 = 去重表列.length >= 5000;
+                const 小空表 = 去重表列.length == 0 && 数量 < 2;
+                if (!忽略表 && !超大表 && !小空表) {
+                    // 新公司爬取任务爬取();
+                    debugger;
+                    // if (!solved) throw new Error("未解析完整");
+                }
+            }
+            if (去重表列.length > 修补数量) {
+                错误 = "数量获取异常，请检查页面 " + location.href.replace(/#.*/, "");
+                debugger;
+                if (!solved) throw new Error("数量获取异常");
+            }
+            return { 表名, 数量: 修补数量, 表列: 去重表列, ...(错误 && { 错误 }) };
         };
 
         // run
-        globalThis.document.title = `爬取中: ${globalThis.document.title}`;
+        const 标题更新 = () => (globalThis.document.title = `司${new Date().toISOString().slice(-11 - 2, -2)}`);
+        标题更新();
 
         await 睡(开始爬取等待毫秒); // wait is important
         const 用户名 = await 用户名获取();
 
         const 表格列 = qsa(document, ".data-content table.table");
-        const 表列对列 = (await amap(表格列, 表格解析))
-            .filter(({ 表名 }) => 表名 && !表名.match("："))
-            .filter(({ 表列 }) => 表列)
-            .map(({ 表名, 数量, 表列 }) => [表名, 表列]);
-        const 数量对列 = qsa(document, ".data-title")
-            .map(表名与数量获取)
-            .filter(e => e)
-            .map(({ 表名, 数量 }) => [表名 + "_数量", 数量]);
+        const 表列与数量表 = Object.fromEntries(
+            (await pmap(表格列, 表格解析))
+                .filter(({ 表名 }) => 表名 && !表名.match("："))
+                .filter(({ 表列 }) => 表列)
+                .flatMap(({ 表名, 数量, 表列, 错误 }) =>
+                    [[表名, 表列], [`${表名}_数量`, 数量], 错误 && [`${表名}_错误`, 错误]].filter(e => e)
+                )
+        ); // 这里不使用数量
+        const 标题数量表 = Object.fromEntries(
+            qsa(document, ".data-title")
+                .map(表名与数量获取)
+                .filter(e => e)
+                .map(({ 表名, 数量 }) => [表名 + "_数量", 数量])
+        );
         const 以键名排序 = ([ka], [kb]) => ka.localeCompare(kb);
-        const 汇总返回表列表 = ofe([...表列对列, ...数量对列].sort(以键名排序));
+        const 无序汇总返回表 = { ...标题数量表, ...表列与数量表 };
+        const 汇总返回表列表 = ofe(Object.entries(无序汇总返回表).sort(以键名排序));
         const 表打印 = ([键, 值]) => {
-            if (typeof 值 === "object") {
-                return console.table(值);
-            }
+            if (typeof 值 === "object") return console.table(值);
             return console.log(`${键}:${值}`);
         };
         // 打印
@@ -612,15 +892,9 @@
                 ?.map(e => e.match(/(.*?)：(.*)/).slice(1)) || []
         );
         const 公司基本信息表 = ofe(
-            [
-                ...document.querySelectorAll(
-                    ".-company-box .detail .in-block .label"
-                ),
-            ].map(e => [
+            [...document.querySelectorAll(".-company-box .detail .in-block .label")].map(e => [
                 e.textContent.slice(0, -1),
-                e.nextElementSibling.textContent
-                    .replace(/任职\d*家企业/g, "")
-                    .replace(/\s*\.\.\.\s+更多\s*/g, ""),
+                e.nextElementSibling.textContent.replace(/任职\d*家企业/g, "").replace(/\s*\.\.\.\s+更多\s*/g, ""),
             ])
         );
         const 风险表 = ofe(
@@ -628,7 +902,41 @@
                 .map(文本获取)
                 .map(e => e.split("\n"))
         );
+        // 数量验证 FIX TODO
+        const 数量异常表列获取 = async 汇总返回表列表 => {
+            const 数验doc = 汇总返回表列表;
+            const 数量表 = Object.fromEntries(
+                Object.entries(数验doc)
+                    .filter(([k, v]) => k.endsWith("_数量"))
+                    .map(([k, v]) => [k.slice(0, -3), v])
+            );
+            const 数量异常忽略列 = [...表名大类, ...未能爬取表名列, ...需要红钻表名列, ...空表表列];
+            const 数量异常表列 = Object.entries(数量表)
+                .filter(([k, v]) => (数验doc[k]?.length ?? 0) !== v)
+                .filter(([k]) => !k.startsWith("历史")) //历史xxx格式都挺奇怪的……
+                .filter(([k]) => !数量异常忽略列.includes(k))
+                .map(([表名, 标示数量]) => {
+                    if (数验doc[表名]) {
+                        console.log(表名, 数验doc[表名].length, 标示数量);
+                        console.table(数验doc[表名]);
+                    }
+                    const 表列数量 = 数验doc[表名]?.length;
+                    if (标示数量 == 0 && 表列数量 > 0) {
+                        // 数量修复，例如工商信息和私募基金等
+                        数验doc[表名 + "_数量"] = 表列数量;
+                        return null;
+                    }
+                    return { 表名, 表列数量, 标示数量 };
+                })
+                .filter(e => e);
+            return 数量异常表列;
+        };
+        const 数量异常表列 = await 数量异常表列获取(汇总返回表列表);
 
+        const 账号需求 = await 页面内容账号需求标识获取();
+        if (账号需求.登录需求) location = "https://www.tianyancha.com/login?";
+        if (账号需求.VIP需求) location = "https://www.tianyancha.com/usercenter/personalcenter"; // 去查看VIP过期信息
+        const 账号 = 账号信息获取().mobile;
         const 公司情况表 = {
             ...公司基本信息表,
             标签列,
@@ -636,67 +944,52 @@
             ...标签信息表,
             风险表,
             ...汇总返回表列表,
-            账号信息: { 用户名 },
-            账号需求: { ...页面内容账号需求标识获取() },
+            ...(数量异常表列?.length && { 数量异常表列 }),
+            账号信息: { 账号, 用户名 },
+            账号需求,
         };
         Object.entries(公司情况表).map(表打印);
         globalThis.debugResult = 公司情况表;
         globalThis.debugResultStr = JSON.stringify(公司情况表);
-        // localStorage.setItem('company-')
-        // throw new Error("check");
-        // 上报录入数据库
-        const 数据库录入结果 = await fetch(
-            "https://dev.xxwl.snomiao.com:8443/api/tyc/put",
-            {
-                method: "post",
-                headers: { "content-type": "application/json" },
-                // headers: { "content-type": "text/plain" },
-                mode: "cors",
-                credentials: "include",
-                body: JSON.stringify({
-                    公司数据表列: [
-                        {
-                            标题链接: location.origin + location.pathname,
-                            解析于: new Date(),
-                            ...globalThis.debugResult,
-                            // ...公司情况表,
-                        },
-                    ],
-                }),
-            }
-        )
-            .then(e => e.text())
-            .then(e => {
-                const _ = json => json;
-                return eval(e);
-            });
 
-        if (数据库录入结果?.code === 0) {
-            // 爬下一个
-            await nextCompanyGo();
-        } else {
-            console.log(数据库录入结果);
-            alert(JSON.stringify(数据库录入结果, null, 4));
-        }
-        return 公司情况表;
+        const 数据上报 = async 公司情况表 => {
+            const 上传JSON = {
+                公司数据表列: [
+                    {
+                        标题链接: location.origin + location.pathname,
+                        解析于: new Date(),
+                        ...公司情况表,
+                    },
+                ],
+            };
+            console.log("正在上报录入数据库", 上传JSON);
+            const 数据库录入结果 = await apiPost("/tyc/put", 上传JSON);
+            const 当页缓存清除 = () =>
+                [...Object.keys(localStorage)].filter(e => e.startsWith(location.pathname)).map(e => localStorage.removeItem(e));
+            当页缓存清除();
 
-        async function nextCompanyGo() {
-            const task = await fetch(
-                "https://dev.xxwl.snomiao.com:8443/api/company/task",
-                { mode: "cors", credentials: "include" }
-            )
-                .then(e => e.text())
-                .then(e => {
-                    const _ = json => json;
-                    return eval(e);
-                });
-            const nextUrl = task?.标题链接;
-            if (!nextUrl) {
-                const err = { code: 1, msg: "未能抓取下一页任务" };
-                console.error(err);
-                alert(JSON.stringify(err, null, 4));
+            if (数据库录入结果?.code !== 0) {
+                console.log(数据库录入结果);
+                softAlert(JSON.stringify(数据库录入结果, null, 4));
+                debugger;
+                throw new Error("数据库未录入完成");
             }
-            location = `${nextUrl}#${crawler_mark}`;
+        };
+        await 数据上报(globalThis.debugResult);
+
+        // 调试
+        if (数量异常表列.length) {
+            console.table(数量异常表列);
+            // 继续
+            await 新公司爬取任务爬取();
+            softAlert("数量检查异常，please check");
+            // for debug
+            // window.open(location.pathname, "_blank");
+            let solved = 0;
+            debugger;
+            if (!solved) throw new Error("未解析完整");
         }
+        // 爬下一个任务
+        await 公司爬取任务爬取();
     }
 })();

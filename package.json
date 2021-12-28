@@ -3,9 +3,11 @@
     "version": "1.0.0",
     "_main": "src/index.js",
     "scripts": {
-        "api-serve-mon": "nodemon src/env/api.mjs",
-        "api-serve": "pm2 start src/env/api.mjs --watch && pm2 log --err --lines 10",
+        "start": "npm run api-serve",
+        "api-serve": "pm2 start src/env/api.mjs --watch && npm run api-serve-log",
+        "api-serve-log": "pm2 log",
         "api-serve-stop": "pm2 stop src/env/api.mjs",
+        "api-serve-mon": "nodemon src/env/api.mjs",
         "company": "node src/task/tyc_company.mjs",
         "search": "pm2 start src/task/tyc_search.mjs --watch",
         "_search": "node src/task/tyc_search.mjs",
