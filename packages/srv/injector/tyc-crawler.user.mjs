@@ -17,7 +17,7 @@
 // ==/UserScript==
 
 // 页面分析TODO
-// 董监高信息20
+// {董监高信息_数量: {$gt: 20}}
 // https://www.tianyancha.com/company/2286525?rnd=
 
 //
