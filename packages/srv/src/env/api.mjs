@@ -14,6 +14,7 @@ const apiBase = "https://dev.xxwl.snomiao.com:8443/api";
 const 计时 = async 名义函数表 =>
     await Promise.all(
         Object.entries(名义函数表).map(async ([名义, 函数]) => {
+            console.log(`${名义}中...`);
             console.time(名义), await 函数(), console.timeEnd(名义);
         })
     );
@@ -25,13 +26,15 @@ const amap = async (a, f) => {
     return r;
 };
 await 账号池.deleteMany({ 账号: "" });
-const 公司数据长度统计 = async () =>
-    await 公司数据.扫描更新({ 解析于: { $ne: null }, JSON串长度: null }, doc => {
+const 公司数据长度统计 = async () => {
+    return await 公司数据.扫描更新({ 解析于: { $ne: null }, JSON串长度: null }, doc => {
         const JSON串长度 = JSON.stringify(doc).length;
         const 标题链接 = doc.标题链接;
-        console.log({ 标题, 标题链接, JSON串长度 });
+        const 标题 = doc.标题;
+        console.table({ 标题, 标题链接, JSON串长度 });
         return { $set: { JSON串长度 } };
     });
+};
 const 搜索任务扫描补充 = async () => {
     return await 搜索任务.扫描更新(
         { 搜索结果使用于: { $lt: new Date("2021-12-19 00:43:47 GMT+8") } },
@@ -407,7 +410,10 @@ const 公司数据任务提取 = async () => {
     await 公司数据.单补({ 标题链接, 访问于: new Date() }, { 标题链接: 1 });
     return 返回公司;
 };
-const 公司数据样本 = async () => await 公司数据.aggregate([{ $match: { 解析于: { $ne: null } } }, { $sample: { size: 1 } }]).toArray();
+const 公司数据样本 = async search =>
+    await 公司数据
+        .aggregate([{ $match: { 解析于: { $ne: null }, ...search, ...{ 董监高信息_数量: { $gt: 20 } } } }, { $sample: { size: 1 } }])
+        .toArray();
 /**
  * @name: get one task obj
  */
@@ -462,15 +468,18 @@ const snoauth = async (req, res, next) => {
 };
 // run
 const app = express();
+import url from "url";
 // ajax cors cross origin support
-const useJsonP = fn => async (req, res) => await res.send(jsonp(await fn(req.body)));
-const useYaml = fn => async (req, res) => await res.send(yaml.stringify(await fn(req.body)));
+const useJsonP = fn => async (req, res) => await res.send(jsonp(await fn({ ...req.body, ...req.query })));
+const useYaml = fn => async (req, res) => await res.send(yaml.stringify(await fn({ ...req.body, ...req.query })));
 app.use(allowCross); //
 app.use(express.json({ limit: "50mb", reviver: jsonDateReviver })); // large post process
 app.use(snoauth);
 app.apiGet = (url, fn) => app.get(url, useJsonP(fn));
 app.apiGetYaml = (url, fn) => app.get(url, useYaml(fn));
 app.apiPost = (url, fn) => app.post(url, useJsonP(fn));
+app.useJsonP = (url, fn) => app.use(url, useJsonP(fn));
+app.useYaml = (url, fn) => app.use(url, useYaml(fn));
 app.apiPost("/api/login", 接口登录);
 app.apiPost("/api/put", 通用数据增补);
 app.apiPost("/api/tyc/put", 数据增补);
@@ -481,7 +490,7 @@ app.apiGet("/api/company/latest/parse", 最近解析公司获取);
 app.apiGet("/api/search", 搜索任务查询);
 app.apiGet("/api/company/task", 公司数据任务提取);
 app.apiGet("/api/search/task", 公司搜索任务提取);
-app.apiGetYaml("/api/tyc/company/sample", 公司数据样本);
+app.useYaml("/api/tyc/company/sample", 公司数据样本);
 app.apiGet("/api/balance", 爬虫资源查询);
 app.apiGet("/api/tyc/account/get", 可用账号提取);
 app.apiGet("/api/tyc/account/list", 账号表列查询);

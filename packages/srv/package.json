@@ -43,7 +43,7 @@
         "password-salt-and-hash": "^1.0.5",
         "puppeteer": "^10.4.0",
         "puppeteer-page-proxy": "^1.2.8",
-        "sno-mongo-ku": "^2.6.5",
+        "sno-mongo-ku": "^2.6.8",
         "sno-utils": "^0.2.3",
         "tsv": "^0.2.0",
         "xlsx": "^0.17.4",
