@@ -4,7 +4,7 @@
     "_main": "src/index.js",
     "scripts": {
         "start": "npm run api-serve",
-        "api-serve": "pm2 start src/env/api.mjs --watch && npm run api-serve-log",
+        "api-serve": "pm2 start src/env/api.mjs --name api --watch && npm run api-serve-log",
         "api-serve-log": "pm2 log",
         "api-serve-stop": "pm2 stop src/env/api.mjs",
         "api-serve-mon": "nodemon src/env/api.mjs",

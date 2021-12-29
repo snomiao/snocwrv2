@@ -11,7 +11,7 @@ import { 对列表, 表对列, 表键筛 } from "sno-utils";
 import yaml from "yaml";
 const apiBase = "https://dev.xxwl.snomiao.com:8443/api";
 
-const 计时 = async 名义函数表 =>
+const 函数表计时 = async 名义函数表 =>
     await Promise.all(
         Object.entries(名义函数表).map(async ([名义, 函数]) => {
             console.log(`${名义}中...`);
@@ -26,19 +26,44 @@ const amap = async (a, f) => {
     return r;
 };
 await 账号池.deleteMany({ 账号: "" });
-const 公司数据长度统计 = async () => {
-    return await 公司数据.扫描更新({ 解析于: { $ne: null }, JSON串长度: null }, doc => {
-        const JSON串长度 = JSON.stringify(doc).length;
-        const 标题链接 = doc.标题链接;
-        const 标题 = doc.标题;
-        console.table({ 标题, 标题链接, JSON串长度 });
-        return { $set: { JSON串长度 } };
-    });
-};
-const 搜索任务扫描补充 = async () => {
-    return await 搜索任务.扫描更新(
-        { 搜索结果使用于: { $lt: new Date("2021-12-19 00:43:47 GMT+8") } },
-        async ({ 搜索结果, 搜索词, 搜索于 }) => {
+
+const 扫描任务表 = {
+    公司数据董监高信息缺失: async () => {
+        return await 公司数据.扫描更新(
+            { $match: { 董监高信息: "解析TODO" }, $project: { 董监高信息: 1, 董监高信息_数量: 1, 数量异常表列: 1, 标题: 1, 标题链接: 1 } },
+            ({ 董监高信息, 董监高信息_数量, 标题, 标题链接 }, i, c) => {
+                console.log(`${i}/${c}转换中: ${标题链接}#${标题}`);
+                // console.table(数量异常表列);
+                // const 数量异常表 = Object.fromEntries(数量异常表列.map(({ 表名, 表列数量, 标示数量 }) => [表名, { 表名, 表列数量, 标示数量 }]));
+                // console.table(数量异常表);
+                console.table({ 董监高信息, 董监高信息_数量 });
+                // return { $set: { JSON串长度 } };
+            }
+        );
+    },
+    公司数据数量异常表转换: async () => {
+        return await 公司数据.扫描更新(
+            { $match: { 数量异常表列: { $ne: null } }, $project: { 数量异常表列: 1, 标题: 1, 标题链接: 1 } },
+            ({ 数量异常表列, 标题, 标题链接 }, i, c) => {
+                console.log(`${i}/${c}转换中: ${标题链接}#${标题}`);
+                console.table(数量异常表列);
+                const 数量异常表 = Object.fromEntries(数量异常表列.map(({ 表名, 表列数量, 标示数量 }) => [表名, { 表名, 表列数量, 标示数量 }]));
+                console.table(数量异常表);
+                // return { $set: { JSON串长度 } };
+            }
+        );
+    },
+    公司数据长度统计: async () => {
+        return await 公司数据.扫描更新({ $match: { 解析于: { $ne: null }, JSON串长度: null } }, doc => {
+            const JSON串长度 = JSON.stringify(doc).length;
+            const 标题链接 = doc.标题链接;
+            const 标题 = doc.标题;
+            console.table({ 标题, 标题链接, JSON串长度 });
+            return { $set: { JSON串长度 } };
+        });
+    },
+    搜索任务扫描补充: async () => {
+        return await 搜索任务.扫描更新({ 搜索结果使用于: { $lt: new Date("2021-12-19 00:43:47 GMT+8") } }, async ({ 搜索结果, 搜索词, 搜索于 }) => {
             const 可用结果 = 搜索结果?.filter(e => e.标题.match(搜索词));
             const 补表列 = 可用结果.map(({ 标题, 标题链接, 搜索结果序号 }) => ({
                 标题,
@@ -50,11 +75,11 @@ const 搜索任务扫描补充 = async () => {
             }));
             补表列.length && (await 公司数据.多补(补表列, { 标题链接: 1 }));
             return { $set: { 搜索结果使用于: new Date() } };
-        }
-    );
-    // 任务数
+        });
+        // 任务数
+    },
 };
-计时({ 公司数据长度统计 }).then();
+函数表计时(扫描任务表).then();
 
 const 最新版本时间 = new Date("2021-12-14 01:36:33 GMT+8");
 const 数据缺失异常修复 = async () => {
@@ -247,13 +272,11 @@ const 验证码处理 = async ({ 验证码源, ...info }) => {
     const image = 验证码源.replace(/^data:image\/....?;base64,/, "");
     const username = process.env.TTSHITU_USERNAME;
     const password = process.env.TTSHITU_PASSWORD;
-    const typeid = 27; // 点选1 ~ 4个坐标
+    const typeid = 27; /*点选1~4个坐标*/
     const body = { username, password, typeid, image };
 
     const fetch = await (await import("node-fetch")).default;
-    const balanceResult = await fetch(`http://api.ttshitu.com/queryAccountInfo.json?username=${username}&password=${password}`).then(e =>
-        e.json()
-    );
+    const balanceResult = await fetch(`http://api.ttshitu.com/queryAccountInfo.json?username=${username}&password=${password}`).then(e => e.json());
     if (balanceResult.code === "0") {
         const balance = balanceResult?.data?.balance;
         await db.爬虫资源.单补({
@@ -387,33 +410,23 @@ const 最近解析公司获取 = () =>
 const 搜索任务查询 = async (q = {}) => await 搜索任务.多查列(q, { projection: { 搜索结果: 0 } });
 const 爬虫资源查询 = async () => await db.爬虫资源.多查列();
 const 公司数据任务提取 = async () => {
-    const 返回公司 =
-        (await 公司数据.findOne(
-            {
-                // 修复旧数据
-                解析于: { $lt: 最新版本时间 },
-                搜索匹配: true,
-                访问于: 不晚于(60).分钟前, // 防止重复提取
-            },
-            { projection: { 标题链接: 1, 标题: 1, 解析于: 1 } }
-        )) ||
-        (await 公司数据.findOne(
-            {
-                解析于: null,
-                搜索匹配: true,
-                访问于: 不晚于(60).分钟前, // 防止重复提取
-            },
-            { projection: { 标题链接: 1, 标题: 1, 解析于: 1 } }
-        ));
+    const 版本更新条件 = { 解析于: { $lt: 最新版本时间 } };
+    const 未解析条件 = { 解析于: null };
+    const 信息缺失 = { 董监高信息: "解析TODO" };
+    const 任务提取 = async 提取条件 =>
+        await 公司数据.findOne({
+            ...提取条件,
+            搜索匹配: true,
+            访问于: 不晚于(60).分钟前, // 防止重复提取
+        });
+    const 返回公司 = (await 任务提取(版本更新条件)) || (await 任务提取(未解析条件)) || (await 任务提取(信息缺失));
     if (!返回公司) return null;
     const { 标题链接 } = 返回公司;
     await 公司数据.单补({ 标题链接, 访问于: new Date() }, { 标题链接: 1 });
     return 返回公司;
 };
 const 公司数据样本 = async search =>
-    await 公司数据
-        .aggregate([{ $match: { 解析于: { $ne: null }, ...search, ...{ 董监高信息_数量: { $gt: 20 } } } }, { $sample: { size: 1 } }])
-        .toArray();
+    await 公司数据.aggregate([{ $match: { 解析于: { $ne: null }, ...search, ...{ 董监高信息_数量: { $gt: 20 } } } }, { $sample: { size: 1 } }]).toArray();
 /**
  * @name: get one task obj
  */
@@ -435,8 +448,7 @@ const 公司搜索任务提取 = async () => {
  * @name: get one task obj
  */
 
-const 账号表列查询 = async () =>
-    await 账号池.多查列({}, { projection: { _id: 0, 账号: 1, 密码: 1, 错误: 1, 使用于: 1, 备注: 1 }, sort: { 使用于: -1 } });
+const 账号表列查询 = async () => await 账号池.多查列({}, { projection: { _id: 0, 账号: 1, 密码: 1, 错误: 1, 使用于: 1, 备注: 1 }, sort: { 使用于: -1 } });
 const 搜索任务表列查询 = async () =>
     await 搜索任务.多查列(
         {},
@@ -469,9 +481,10 @@ const snoauth = async (req, res, next) => {
 // run
 const app = express();
 import url from "url";
+import path from "path";
 // ajax cors cross origin support
-const useJsonP = fn => async (req, res) => await res.send(jsonp(await fn({ ...req.body, ...req.query })));
-const useYaml = fn => async (req, res) => await res.send(yaml.stringify(await fn({ ...req.body, ...req.query })));
+const useJsonP = fn => async (req, res) => await res.send(jsonp(await fn({ ...req.body, ...req.query, ...req.params })));
+const useYaml = fn => async (req, res) => await res.send(yaml.stringify(await fn({ ...req.body, ...req.query, ...req.params })));
 app.use(allowCross); //
 app.use(express.json({ limit: "50mb", reviver: jsonDateReviver })); // large post process
 app.use(snoauth);
@@ -488,6 +501,10 @@ app.apiGet("/api/company/progress", 爬取进度查询);
 app.apiGet("/api/search/progress", 搜索进度查询);
 app.apiGet("/api/company/latest/parse", 最近解析公司获取);
 app.apiGet("/api/search", 搜索任务查询);
+app.get("/api/tyc/injector.user.mjs", (req, res) => {
+    res.set("Cache-Control", "no-store");
+    res.sendFile(path.join(process.cwd(), "injector/tyc-crawler.user.mjs"));
+});
 app.apiGet("/api/company/task", 公司数据任务提取);
 app.apiGet("/api/search/task", 公司搜索任务提取);
 app.useYaml("/api/tyc/company/sample", 公司数据样本);
@@ -495,6 +512,8 @@ app.apiGet("/api/balance", 爬虫资源查询);
 app.apiGet("/api/tyc/account/get", 可用账号提取);
 app.apiGet("/api/tyc/account/list", 账号表列查询);
 app.apiGet("/api/tyc/search/list", 搜索任务表列查询);
+app.apiGet("/api/url/*", ({ 0: url }) => 公司数据.findOne({ 标题链接: url }));
+//
 app.listen(65534);
 
 const main = await import("es-main").then(e => e.default(import.meta));
