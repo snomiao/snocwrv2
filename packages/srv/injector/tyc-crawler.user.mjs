@@ -50,10 +50,11 @@
     const 验证页面内 = urlMatched("https://antirobot.tianyancha.com/captcha/verify?");
     const 登录页面内 = urlMatched("https://www.tianyancha.com/login?");
     const 搜索页面内 = urlMatched("https://www.tianyancha.com/search");
-    const 公司页面内 = urlMatched("https://www.tianyancha.com/company/"); 
+    const 公司页面内 = urlMatched("https://www.tianyancha.com/company/");
 
     // TODO: 董监高信息需要对 tab 再分解
-    const 表名大类 = ["公司公示", "抽查检查", "经营异常", "历史经营异常", "抖音/快手", "询价评估", "严重违法", "股权质押"];
+    const 标签大类 = ["董监高信息"];
+    const 表名大类 = [...标签大类, "公司公示", "抽查检查", "经营异常", "历史经营异常", "抖音/快手", "询价评估", "严重违法", "股权质押"];
     const 未能爬取表名列 = (e => e.trim().split(/\s+/))(`
         历史股东镜像 历史高管镜像 历史经营异常 历史网站备案 历史被执行人 // 特殊格式
         主要人员 股东信息 // 未知...
@@ -85,6 +86,7 @@
         qsa(ele)
             .reverse()
             .find(e => e?.textContent?.match?.(pattern));
+    // 元素搜索('董监高信息').
     const 整数范围列 = (min, max) => [...Array(max - min + 1).keys()].map(e => e + min);
     const 文本获取 = e => e?.innerText || e?.textContent || "";
     const 标题获取 = e => 文本获取(e);
@@ -212,15 +214,15 @@
     });
     [...ui.querySelectorAll("*")]
         .reverse()
-        .find(e => e.textContent === "next-company")
+        .find(e => e.textContent.match("next-company"))
         .addEventListener("click", 新公司爬取任务爬取, false);
     [...ui.querySelectorAll("*")]
         .reverse()
-        .find(e => e.textContent === "next-search")
+        .find(e => e.textContent.match("next-search"))
         .addEventListener("click", 新搜索任务爬取, false);
     [...ui.querySelectorAll("*")]
         .reverse()
-        .find(e => e.textContent === "debug-mode-set")
+        .find(e => e.textContent.match("debug-mode-set"))
         .addEventListener("click", () => (globalThis.debug_flag = 1), false);
     document?.querySelector("#tycrui")?.parentElement?.remove();
     document.body.appendChild(ui);
@@ -602,11 +604,15 @@
             }
         };
         const 表名与数量获取 = 元素 => {
+            // data-header
+            // console.log([...document.body.querySelectorAll('.block-data')].map(e=>[e,...[ ...e.querySelectorAll('.data-title')].map(e=>e.textContent).filter(e=>e)]))
             const 入口元素 = 元素;
-            while ((元素 = 元素?.parentElement)) {
+            while (1) {
                 if (元素.classList.contains("block-data-group")) {
-                    debugger;
-                    throw new Error("表名元素超界，请修改此处代码");
+                    // debugger;
+                    // throw new Error("表名元素超界，请修改此处代码");
+                    // 可能没有表名。。。返回空
+                    return {};
                 }
                 const 标题sel = ":scope>.data-title,:scope>.data-header>.data-title";
                 const 数量sel = ":scope>.data-count,:scope>.data-header>.data-count";
@@ -625,11 +631,16 @@
                     图标标题元素?.classList.contains(类名)
                 )?.[1];
                 const 表名 = 文本获取(标题元素) || 标题元素文本节点文本 || 图标标题元素文本;
-                if (!(入口元素是标题 || 入口元素是表格)) continue;
+                if (!(入口元素是标题 || 入口元素是表格) && !表名) {
+                    元素 = 元素?.parentElement;
+                    continue;
+                }
                 const 数量串 = 文本获取(元素?.querySelector(数量sel));
                 // const 工商信息数量修复 = 表名 === "工商信息" ? 1 : 0;
-                const 数量 = Number(数量串 || 0);
+                const 数量 = 数量串 && Number(数量串);
                 if (表名) return { 表名, 数量 };
+                元素 = 元素?.parentElement;
+                continue;
             }
             return null;
         };
@@ -700,13 +711,14 @@
         const 各种表格表列获取尝试 = tt =>
             chart表格表列获取尝试(tt) || 对键表格表列获取尝试(tt) || 历史表格表列获取尝试(tt) || 一般表格表列获取尝试(tt);
 
-        const 表格表列翻页获取 = async (表元素引用, { 表名, 数量, 页数限制 = +Infinity }) => {
-            const 表选择器 = `.${表元素引用.className.trim().split(/ +/).join(".")}`;
-            const block_data = 向父级查找(表元素引用, ".data-content").parentElement;
-            if (!block_data) throw new Error(".data-content not found");
-            block_data.scrollIntoView();
+        const 表格表列翻页获取 = async (blockData, { 表名, 数量, 页数限制 = +Infinity }) => {
+            // const 表选择器 = `.${表元素引用.className.trim().split(/ +/).join(".")}`;
+            // const block_data = 向父级查找(表元素引用, ".data-content").parentElement;
+            // if (!block_data) throw new Error(".data-content not found");
+
+            blockData.scrollIntoView();
             // page detect
-            const bdSel = (s = "") => block_data.querySelector(s);
+            const bdSel = (s = "") => blockData.querySelector(s);
             const pagerSel = (s = "") => bdSel(`.pagination ${s}`.trim());
 
             // 缓存
@@ -727,7 +739,7 @@
                 // 分页处理
                 const 所在分页 = Number(pagerSel("a.-current")?.textContent || "1");
                 // 表格元素获取
-                const 表格 = bdSel(表选择器);
+                const 表格 = bdSel("table.table");
                 if (!表格) {
                     if (DEBUG标记) debugger;
                     throw new Error("表格元素丢失");
@@ -765,6 +777,7 @@
                 const 按什么相减 = 函数 => (a, b) => 函数(a) - 函数(b);
                 const 最近可点击页面 = 稀疏可点击页面列.sort(按什么相减(函续(a => a.页码, 剩余页码距离)))[0];
                 const 下一页按钮 = 最近可点击页面.页码 <= 页数限制 && 最近可点击页面?.a;
+                if (!下一页按钮) break;
                 下一页按钮.click();
                 let k = 0;
                 let timeout = 0;
@@ -805,48 +818,112 @@
             return Object.values(分页表列表).flat();
         };
         // TODO 改成先查所有data-content再处理table
+        const 表格容器块表列表解析 = async blockData => {
+            const dataContent = blockData.querySelector(".data-content");
+            if (!dataContent) return {};
+            const t = dataContent.querySelector("table.table");
+            if (!t) return {};
 
-        const 表格解析 = async t => {
-            const { 表名, 数量 } = 表名与数量获取(t);
-            const 关键表 = /工商信息|主要人员|股东信息|对外投资|最终受益人|变更记录|开庭公告|法律诉讼/;
-            const 异常表 = /资质资格|董监高信息|双随机抽查/;
-            const 跳过否 = !!表名?.match?.(异常表); // 暂时禁用
-            if (跳过否) {
-                return { 表名, 数量, 表列: "解析TODO" };
-            }
-            const 翻页否 = !!表名?.match?.(关键表); // 暂时禁用
-            //注意翻页行为会让t被remove,所以必须先搞定表名与数量
-            const 表列 = 表列人员解析(await 表格表列翻页获取(t, { 表名, 数量, 页数限制: +Infinity }));
-            const 表列按函数去重 = (表列, 相等函数) => 表列.filter((a, index) => index === 表列.findIndex(b => 相等函数(a, b)));
-            const 表列针对序号去重 = 表列 => (表列?.[0]?.序号 ? 表列按函数去重(表列, (a, b) => a.序号 === b.序号) : 表列);
+            // const block_data = 向父级查找(表元素引用, ".data-content").parentElement;
+            const { 表名: 块级表名, 数量: 块级数量 } = 表名与数量获取(blockData);
+            const 标签信息获取 = tabItem => {
+                const [标签名, 标签内数量串] = tabItem.textContent?.match(/^(.*?)(?:\s*?(\d+))?$/)?.slice(1) || [];
+                const 标签内数量 = 标签内数量串 && Number(标签内数量串);
+                return { 标签名, 标签内数量 };
+            };
+            const contentTab = blockData.querySelector(".content-tab");
+            const hasTabs = blockData.querySelector(".tab-item");
+            // tab-inner block-data -active
+            const tabs = hasTabs && [...blockData.querySelectorAll(".tab-item")].map(标签信息获取);
+            const noTabs = [{}];
+            const 各标签表列表列 = await amap(tabs || noTabs, async ({ 标签名, 标签内数量 }) => {
+                // 注意tab会在新标签加载之后之后被remove，所以这里检测active需要从blockData开始
+                // if tab exists  then wait for the active
 
-            // 由于网络延迟问题可能某页会重复爬取，于是对表列去重尝试解决
-            const 去重表列 = 表列针对序号去重(表列);
-            // 爬取的比天眼查统计到的多1个，可能是天眼查数量统计更新不及时，这里尝试修正一下
-            const 比率误差修复尝试 = (实, 测, 比率 = 0.1) => (Math.abs(实 - 测) / 实 <= 比率 ? 实 : 测);
-            const 个数误差修复尝试 = (实, 测, 个数 = 2) => (Math.abs(实 - 测) <= 个数 ? 实 : 测);
-            const 修补数量 = 个数误差修复尝试(去重表列.length, 比率误差修复尝试(去重表列.length, 数量 || 表列.length));
-            let 错误 = null;
-            if (去重表列.length < 修补数量) {
-                元素搜索(表名).scrollIntoView();
-                错误 = 表名 + "数据可能未解析完整" + location.href.replace(/#.*/, "");
-                softAlert(错误);
-                console.log(表名, 去重表列, 去重表列.length, 数量);
-                const 忽略表 = 翻页不正常表名列.includes(表名);
-                const 超大表 = 去重表列.length >= 5000;
-                const 小空表 = 去重表列.length == 0 && 数量 < 2;
-                if (!忽略表 && !超大表 && !小空表) {
-                    // 新公司爬取任务爬取();
-                    debugger;
-                    // if (!solved) throw new Error("未解析完整");
+                const activeTabBlockDataGet = () =>
+                    [...blockData.querySelectorAll(".block-data")].filter(tabBlockData => {
+                        const activeTab = tabBlockData.querySelector(".tab-item.-active");
+                        if (!activeTab) return null;
+                        const activeTabInfo = 标签信息获取(activeTab);
+                        return JSON.stringify(activeTabInfo) === JSON.stringify({ 标签名, 标签内数量 });
+                    })[0] || blockData;
+
+                if (标签名) {
+                    let k = 0;
+                    while (1) {
+                        // wait for active tab
+                        const activeTab = activeTabBlockDataGet().querySelector(".tab-item.-active");
+                        const activeTabInfo = 标签信息获取(activeTab);
+                        if (JSON.stringify(activeTabInfo) === JSON.stringify({ 标签名, 标签内数量 })) break;
+                        // wait for active tab blockdata
+
+                        [...activeTabBlockDataGet().querySelectorAll(".tab-item")]
+                            .filter(tabItem => 标签信息获取(tabItem).标签名 === 标签名)
+                            .map(e => e.click());
+                        await 睡(1000);
+                        if (k++ > 5) {
+                            debugger;
+                            throw new Error("wait for tab timeout");
+                        }
+                    }
                 }
-            }
-            if (去重表列.length > 修补数量) {
-                错误 = "数量获取异常，请检查页面 " + location.href.replace(/#.*/, "");
-                debugger;
-                if (!solved) throw new Error("数量获取异常");
-            }
-            return { 表名, 数量: 修补数量, 表列: 去重表列, ...(错误 && { 错误 }) };
+
+                const 表名 = (块级表名 || "") + ((标签名 && `_${标签名}`) || "");
+                if (表名 === "undefined") {
+                    debugger;
+                }
+                const 数量 = 标签内数量 || 块级数量;
+                if (!表名) {
+                    console.log(activeTabBlockDataGet());
+                    debugger;
+                    throw new Error("表名获取异常, debug please");
+                }
+                // {表名,数量, activeTabBlockData}
+                const 关键表 = /工商信息|主要人员|股东信息|对外投资|最终受益人|变更记录|开庭公告|法律诉讼/;
+                const 异常表 = /资质资格|双随机抽查/;
+                const 跳过否 = !!表名?.match?.(异常表); // 暂时禁用
+                if (跳过否) return { 表名, 数量, 表列: "解析TODO" };
+
+                const 翻页否 = !!表名?.match?.(关键表); // 暂时禁用
+
+                let 原始表列 = await 表格表列翻页获取(activeTabBlockDataGet(), { 表名, 数量, 页数限制: +Infinity });
+
+                //注意翻页行为会让t被remove,所以必须先搞定表名与数量
+                const 表列 = 表列人员解析(原始表列);
+                const 表列按函数去重 = (表列, 相等函数) => 表列.filter((a, index) => index === 表列.findIndex(b => 相等函数(a, b)));
+                const 表列针对序号去重 = 表列 => (表列?.[0]?.序号 ? 表列按函数去重(表列, (a, b) => a.序号 === b.序号) : 表列);
+
+                // 由于网络延迟问题可能某页会重复爬取，于是对表列去重尝试解决
+                const 去重表列 = 表列针对序号去重(表列);
+                // 爬取的比天眼查统计到的多1个，可能是天眼查数量统计更新不及时，这里尝试修正一下
+                const 比率误差修复尝试 = (实, 测, 比率 = 0.1) => (Math.abs(实 - 测) / 实 <= 比率 ? 实 : 测);
+                const 个数误差修复尝试 = (实, 测, 个数 = 2) => (Math.abs(实 - 测) <= 个数 ? 实 : 测);
+                const 修补数量 = 个数误差修复尝试(去重表列.length, 比率误差修复尝试(去重表列.length, 数量 || 表列.length));
+                let 错误 = null;
+                if (去重表列.length < 修补数量) {
+                    // console.log(表名, 元素搜索(表名))
+                    元素搜索(表名.replace(/_.*/, "")).scrollIntoView();
+                    错误 = 表名 + "数据可能未解析完整" + location.href.replace(/#.*/, "");
+                    softAlert(错误);
+                    console.log(表名, 去重表列, 去重表列.length, 数量);
+                    const 忽略表 = 翻页不正常表名列.includes(表名);
+                    const 超大表 = 去重表列.length >= 5000;
+                    const 小空表 = 去重表列.length == 0 && 数量 < 2;
+                    if (!忽略表 && !超大表 && !小空表) {
+                        // 新公司爬取任务爬取();
+                        // debugger;
+                        // if (!solved) throw new Error("未解析完整");
+                    }
+                }
+                if (去重表列.length > 修补数量) {
+                    错误 = "数量获取异常，请检查页面 " + location.href.replace(/#.*/, "");
+                    debugger;
+                    if (!solved) throw new Error("数量获取异常");
+                }
+                if (表名) return { [表名]: 去重表列, [`${表名}_数量`]: 修补数量, ...(错误 && { [`${表名}_错误`]: 错误 }) };
+            });
+            const 表列表 = 各标签表列表列.reduce((a, b) => ({ ...a, ...b }));
+            return 表列表;
         };
 
         // run
@@ -856,15 +933,13 @@
         await 睡(开始爬取等待毫秒); // wait is important
         const 用户名 = await 用户名获取();
 
-        const 表格列 = qsa(document, ".data-content table.table");
-        const 表列与数量表 = Object.fromEntries(
-            (await pmap(表格列, 表格解析))
-                .filter(({ 表名 }) => 表名 && !表名.match("："))
-                .filter(({ 表列 }) => 表列)
-                .flatMap(({ 表名, 数量, 表列, 错误 }) =>
-                    [[表名, 表列], [`${表名}_数量`, 数量], 错误 && [`${表名}_错误`, 错误]].filter(e => e)
-                )
-        ); // 这里不使用数量
+        const 表格容器块列 = qsa(document, ".block-data:not(.tab-inner)");
+        const 表列数据表 = (await amap(表格容器块列, 表格容器块表列表解析)).reduce((a, b) => ({ ...a, ...b })); // 这里不使用数量
+        // .filter(({ 表名 }) => 表名 && !表名.match("："))
+        // .filter(({ 表列 }) => 表列)
+        // .flatMap(({ 表名, 数量, 表列, 错误 }) =>
+        //     [[表名, 表列], [`${表名}_数量`, 数量], 错误 && [`${表名}_错误`, 错误]].filter(e => e)
+
         const 标题数量表 = Object.fromEntries(
             qsa(document, ".data-title")
                 .map(表名与数量获取)
@@ -872,7 +947,7 @@
                 .map(({ 表名, 数量 }) => [表名 + "_数量", 数量])
         );
         const 以键名排序 = ([ka], [kb]) => ka.localeCompare(kb);
-        const 无序汇总返回表 = { ...标题数量表, ...表列与数量表 };
+        const 无序汇总返回表 = { ...标题数量表, ...表列数据表 };
         const 汇总返回表列表 = ofe(Object.entries(无序汇总返回表).sort(以键名排序));
         const 表打印 = ([键, 值]) => {
             if (typeof 值 === "object") return console.table(值);
@@ -979,6 +1054,7 @@
 
         // 调试
         if (数量异常表列.length) {
+            console.log(数据库录入结果);
             console.table(数量异常表列);
             // 继续
             await 新公司爬取任务爬取();
