@@ -9,6 +9,7 @@ import "sno-utils";
 import { csv表列串 } from "../utils/csv表列串.mjs";
 import { 对列表, 表对列, 表键筛 } from "sno-utils";
 import yaml from "yaml";
+import cookieParser from "cookie-parser";
 const apiBase = "https://dev.xxwl.snomiao.com:8443/api";
 
 const 函数表计时 = async 名义函数表 =>
@@ -49,7 +50,7 @@ const 扫描任务表 = {
                 console.table(数量异常表列);
                 const 数量异常表 = Object.fromEntries(数量异常表列.map(({ 表名, 表列数量, 标示数量 }) => [表名, { 表名, 表列数量, 标示数量 }]));
                 console.table(数量异常表);
-                // return { $set: { JSON串长度 } };
+                return { $set: { 数量异常表 }, $unset: { 数量异常表列: 1 } };
             }
         );
     },
@@ -81,7 +82,9 @@ const 扫描任务表 = {
 };
 函数表计时(扫描任务表).then();
 
-const 最新版本时间 = new Date("2021-12-14 01:36:33 GMT+8");
+// const 最新版本时间 = new Date("2021-12-14 01:36:33 GMT+8");
+const 最新版本时间 = new Date("2021-12-30 19:20:21 GMT+8");
+
 const 数据缺失异常修复 = async () => {
     console.time("数据缺失异常修复");
     let 完整数 = 0;
@@ -172,15 +175,20 @@ async function API用户初始化() {
     );
     return API_用户;
 }
-export async function 接口登录({ 用户名, 密码 }) {
-    // 用户验证
-    const 用户 = await API_用户.findOne({ 用户名 });
-    if (!用户) return { code: 1, 错误: "请检查用户名或重新注册" };
-    if (!密码验证(用户.密钥, 密码)) return { code: 1, 错误: "密码错误" };
-    const expiresIn = 15 * 86400; /* 秒 */
-    return await jwt.sign({ 用户名 }, JWT_SECRET, {
-        expiresIn,
-    });
+export async function 接口登录({ 用户名, 密码, token }) {
+    const expiresIn = 15 * 86400; /* 秒 */ // 15 天
+    if (token) {
+        const { _id, 用户名 } = await jwt.verify(token, JWT_SECRET).catch(e => null);
+        const 用户 = (await API_用户.findOne({ _id })) || (await API_用户.findOne({ 用户名 }));
+        if (!用户) return { code: 1, 错误: "用户不存在，可能已被管理员删除，请联系客服处理。" };
+        return { code: 0, 令牌: await jwt.sign({ _id: 用户._id, 用户名: 用户.用户名 }, JWT_SECRET, { expiresIn }) };
+    } else {
+        // 用户验证
+        const 用户 = await API_用户.findOne({ 用户名 });
+        if (!用户) return { code: 1, 错误: "用户不存在，请检查用户名或前往注册" };
+        if (!密码验证(用户.密钥, 密码)) return { code: 1, 错误: "密码错误" };
+        return { code: 0, 令牌: await jwt.sign({ _id: 用户._id, 用户名: 用户.用户名 }, JWT_SECRET, { expiresIn }) };
+    }
 }
 /**
  * @deprecated
@@ -243,7 +251,7 @@ const allowCross = (req, res, next) => {
         res.set({
             "Access-Control-Allow-Credentials": true,
             "Access-Control-Allow-Origin": req.headers.origin || "*",
-            "Access-Control-Allow-Headers": "X-Requested-With,Content-Type,Authorization",
+            "Access-Control-Allow-Headers": "X-Requested-With,Content-Type,Authorization,Cookies",
             "Access-Control-Allow-Methods": "PUT,POST,GET,DELETE,OPTIONS",
             "Content-Type": "application/json; charset=utf-8", //默认与允许的文本格式json和编码格式
         });
@@ -332,18 +340,20 @@ const 验证码处理 = async ({ 验证码源, ...info }) => {
 /* 验证码标本上传 */
 const 搜索进度查询 = async () => {
     return {
-        时间: new Date() /* .toISOString(), */,
-        任务数: await 搜索任务.find().count(),
-        已搜索任务: await 搜索任务
-            .find({
-                搜索于: { $ne: null },
-            })
-            .count(),
-        未搜索任务: await 搜索任务
-            .find({
-                搜索于: null,
-            })
-            .count(),
+        // 时间: new Date() /* .toISOString(), */,
+        任务统计: {
+            任务数: await 搜索任务.find().count(),
+            已搜索任务: await 搜索任务
+                .find({
+                    搜索于: { $ne: null },
+                })
+                .count(),
+            未搜索任务: await 搜索任务
+                .find({
+                    搜索于: null,
+                })
+                .count(),
+        },
         访问数量: {
             分钟: await 搜索任务
                 .find({
@@ -382,11 +392,21 @@ const 搜索进度查询 = async () => {
 };
 const 爬取进度查询 = async () => {
     return {
-        时间: new Date() /* .toISOString(), */,
-        任务数: await 公司数据.find({ 搜索匹配: true }).count(),
-        已解析任务: await 公司数据.find({ 搜索匹配: true, 解析于: { $ne: null } }).count(),
-        未解析任务: await 公司数据.find({ 搜索匹配: true, 解析于: null }).count(),
-        未修复任务: await 公司数据.find({ 搜索匹配: true, 解析于: { $lt: 最新版本时间 }, 修复标记于: { $ne: null } }).count(),
+        // 时间: new Date() /* .toISOString(), */,
+        任务类型统计: {
+            条目总数: await 公司数据.find({}).count(),
+            任务总数: await 公司数据.find({ 搜索匹配: true }).count(),
+            已解析: await 公司数据.find({ 搜索匹配: true, 解析于: { $ne: null } }).count(),
+            新任务: await 公司数据.find({ 搜索匹配: true, 解析于: null }).count(),
+        },
+        任务版本情况: {
+            版本日期: 最新版本时间.toISOString().slice(0, 10),
+            待更新: await 公司数据.find({ 搜索匹配: true, 解析于: { $lt: 最新版本时间 } }).count(),
+            队列任务: await 公司数据任务查询().count(),
+            // 董监高信息任务解析TODO: await 公司数据.find({ 搜索匹配: true, 董监高信息_数量: { $ne: null }, 董监高信息_监事会: null }).count(),
+            // 董监高信息解析TODO: await 公司数据.find({ 董监高信息_数量: { $ne: null }, 董监高信息_监事会: null }).count(),
+            // 董监高信息数量: await 公司数据.find({ 董监高信息_数量: { $ne: null } }).count(),
+        },
         访问数量: {
             分钟: await 公司数据.find({ 访问于: 晚于(60).秒前 }).count(),
             小时: await 公司数据.find({ 访问于: 晚于(3600).秒前 }).count(),
@@ -409,17 +429,15 @@ const 最近解析公司获取 = () =>
 
 const 搜索任务查询 = async (q = {}) => await 搜索任务.多查列(q, { projection: { 搜索结果: 0 } });
 const 爬虫资源查询 = async () => await db.爬虫资源.多查列();
+const 公司数据任务查询 = () => {
+    const 版本更新条件 = { 解析于: { $lt: 最新版本时间 }, 搜索匹配: true, 访问于: 不晚于(10).分钟前 };
+    const 未解析条件 = { 解析于: null, 搜索匹配: true, 访问于: 不晚于(10).分钟前 };
+    const 信息缺失 = { 董监高信息_数量: { $ne: null }, 董监高信息_监事会: null, 访问于: 不晚于(10).分钟前 };
+    const $match = { $or: [版本更新条件, 未解析条件, 信息缺失] };
+    return 公司数据.find($match);
+};
 const 公司数据任务提取 = async () => {
-    const 版本更新条件 = { 解析于: { $lt: 最新版本时间 } };
-    const 未解析条件 = { 解析于: null };
-    const 信息缺失 = { 董监高信息: "解析TODO" };
-    const 任务提取 = async 提取条件 =>
-        await 公司数据.findOne({
-            ...提取条件,
-            搜索匹配: true,
-            访问于: 不晚于(60).分钟前, // 防止重复提取
-        });
-    const 返回公司 = (await 任务提取(版本更新条件)) || (await 任务提取(未解析条件)) || (await 任务提取(信息缺失));
+    const 返回公司 = (await 公司数据任务查询().limit(1).toArray())?.[0];
     if (!返回公司) return null;
     const { 标题链接 } = 返回公司;
     await 公司数据.单补({ 标题链接, 访问于: new Date() }, { 标题链接: 1 });
@@ -448,7 +466,7 @@ const 公司搜索任务提取 = async () => {
  * @name: get one task obj
  */
 
-const 账号表列查询 = async () => await 账号池.多查列({}, { projection: { _id: 0, 账号: 1, 密码: 1, 错误: 1, 使用于: 1, 备注: 1 }, sort: { 使用于: -1 } });
+const 账号表列查询 = async () => await 账号池.多查列({}, { projection: { _id: 0, 账号: 1, 密码: 1, 错误: 1, 备注: 1 }, sort: { 使用于: -1 } });
 const 搜索任务表列查询 = async () =>
     await 搜索任务.多查列(
         {},
@@ -475,8 +493,24 @@ const 可用账号提取 = async () => {
 
 const snoauth = async (req, res, next) => {
     // req.headers //Authorization.
-    console.log(req.url, req.headers.authorization);
-    await next();
+    const [, basicToken] = req.headers.authorization?.match(/^Basic (.*)/) || [];
+    const token = basicToken || req.cookies.token || "";
+    await jwt
+        .verify(token, JWT_SECRET)
+        .then(async authinfo => {
+            console.log(req.url, req.headers.authorization.slice(0, 10) + "...", JSON.stringify(req.cookies), authinfo.用户名);
+            await next();
+        })
+        .catch(async e => {
+            res.status(403), res.send(e.message);
+        });
+    // if (token && authinfo) {
+    //     req.authinfo = authinfo;
+    //     await next();
+    // } else {
+    //     res.status(403);
+    //     res.send("need auth");
+    // }
 };
 // run
 const app = express();
@@ -487,20 +521,24 @@ const useJsonP = fn => async (req, res) => await res.send(jsonp(await fn({ ...re
 const useYaml = fn => async (req, res) => await res.send(yaml.stringify(await fn({ ...req.body, ...req.query, ...req.params })));
 app.use(allowCross); //
 app.use(express.json({ limit: "50mb", reviver: jsonDateReviver })); // large post process
-app.use(snoauth);
+app.use(cookieParser());
 app.apiGet = (url, fn) => app.get(url, useJsonP(fn));
 app.apiGetYaml = (url, fn) => app.get(url, useYaml(fn));
 app.apiPost = (url, fn) => app.post(url, useJsonP(fn));
 app.useJsonP = (url, fn) => app.use(url, useJsonP(fn));
 app.useYaml = (url, fn) => app.use(url, useYaml(fn));
 app.apiPost("/api/login", 接口登录);
+app.use(snoauth);
 app.apiPost("/api/put", 通用数据增补);
 app.apiPost("/api/tyc/put", 数据增补);
 app.apiPost("/api/captcha", 验证码处理);
 app.apiGet("/api/company/progress", 爬取进度查询);
 app.apiGet("/api/search/progress", 搜索进度查询);
 app.apiGet("/api/company/latest/parse", 最近解析公司获取);
-app.apiGet("/api/search", 搜索任务查询);
+app.apiGet("/api/tyc/search", 搜索任务查询);
+app.apiPost("/api/tyc/search", async ({ query }) => {
+    return await 公司数据.findOne({ $or: [{ 标题链接: new RegExp(query) }, { 标题: new RegExp(query) }] });
+});
 app.get("/api/tyc/injector.user.mjs", (req, res) => {
     res.set("Cache-Control", "no-store");
     res.sendFile(path.join(process.cwd(), "injector/tyc-crawler.user.mjs"));
@@ -512,7 +550,8 @@ app.apiGet("/api/balance", 爬虫资源查询);
 app.apiGet("/api/tyc/account/get", 可用账号提取);
 app.apiGet("/api/tyc/account/list", 账号表列查询);
 app.apiGet("/api/tyc/search/list", 搜索任务表列查询);
-app.apiGet("/api/url/*", ({ 0: url }) => 公司数据.findOne({ 标题链接: url }));
+app.useJsonP("/api/url/*", query => 公司数据.findOne({ 标题链接: query[0] || query.url }));
+// app.apiGet("/api/tyc/company/byurl", ({ url }) => 公司数据.findOne({ 标题链接: url }));
 //
 app.listen(65534);
 
@@ -520,7 +559,7 @@ const main = await import("es-main").then(e => e.default(import.meta));
 if (main) {
     console.table(await API_用户.多查列({}));
     const [用户名, 密码] = "天眼查数据增补 glwc-tyc-api-p@ssw0rd".split(/\s+/);
-    const 令牌 = await 接口登录({ 用户名, 密码 });
+    const { code, 错误, 令牌 } = await 接口登录({ 用户名, 密码 });
     console.log("登录令牌:", 令牌);
     console.log(await jwt.verify(令牌, JWT_SECRET));
     console.log("done");

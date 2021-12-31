@@ -86,7 +86,7 @@
         qsa(ele)
             .reverse()
             .find(e => e?.textContent?.match?.(pattern));
-    // 元素搜索('董监高信息').
+
     const 整数范围列 = (min, max) => [...Array(max - min + 1).keys()].map(e => e + min);
     const 文本获取 = e => e?.innerText || e?.textContent || "";
     const 标题获取 = e => 文本获取(e);
@@ -96,24 +96,7 @@
         const { state, vipManager, mobile, ...other } = JSON.parse(decodeURIComponent(cookie["tyc-user-info"]));
         return { state, vipManager, mobile, ...other };
     };
-    const 用户名获取 = async () => {
-        let got用户名 = "";
-        let trytimes = 30;
-        while (!got用户名 && trytimes-- > 0) {
-            got用户名 = document.querySelector(".nav-user-name")?.textContent;
-            await 睡(1e3); // 用户名间隔ms
-        }
-        if (!got用户名) {
-            const errmsg = "未能获取到用户名，请检查登录状态";
-            softAlert(errmsg);
-            await 睡(2e3);
-            location.reload(); // 也许重载时会跳转到登录页面
-            let solved = 0;
-            debugger;
-            if (!solved) throw new Error(errmsg);
-        }
-        return got用户名;
-    };
+    const 需要登录 = async () => !!元素搜索(/登录\/注册/);
 
     const amap = async (a, f) => {
         const r = [];
@@ -125,25 +108,35 @@
     const pmap = async (a, f) => {
         return await Promise.all(a.map(f));
     };
+    // api
+    const apiBase = "https://dev.xxwl.snomiao.com:8443/api";
     const jsonpParse = e => {
         const _ = json => json;
         return eval(e);
     };
-    const apiBase = "https://dev.xxwl.snomiao.com:8443/api";
     const corsOptions = {
         mode: "cors",
         credentials: "include",
     };
-    globalThis.snocrawler_token =
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyLnlKjmiLflkI0iOiLlpKnnnLzmn6XmlbDmja7lop7ooaUiLCJpYXQiOjE2Mzk5MTQ0NjUsImV4cCI6MTY0MTIxMDQ2NX0.dCoOZuzdvoIH5e1I9r3BqVO6iLrKXMhcrakEvTdjZBE";
-    globalThis.snocrawler_token ||= await globalThis?.GM?.getValue("snocrawler-token", "snocrawler-client-gm");
-    globalThis.snocrawler_token ||= "snocrawler-client";
-    await globalThis?.GM?.setValue("snocrawler-token", globalThis.snocrawler_token);
+    // init jwt
+    const scTokenGet = async () => {
+        globalThis.snocrawler_token ||= localStorage.getItem("snocrawler-token"); // localstorage 站点存储
+        globalThis.snocrawler_token ||= await globalThis?.GM?.getValue("snocrawler-token", "snocrawler-client-gm"); // gm setting 跨站点存储
+        globalThis.snocrawler_token ||= "snocrawler-client";
+        return globalThis.snocrawler_token;
+    };
+    const scTokenSet = async value => {
+        await globalThis?.GM?.setValue("snocrawler-token", value);
+        localStorage.setItem("snocrawler-token", value);
+        globalThis.snocrawler_token = value;
+    };
+    await scTokenSet(await scTokenGet());
     const authHeaders = {
         Authorization: "Basic " + globalThis.snocrawler_token,
     };
-    const apiFetch = async (path, body = null) =>
-        await fetch(apiBase + path, {
+    const apiFetch = async (path, body = null) => {
+        console.log("apiFetching", apiBase + path);
+        return await fetch(apiBase + path, {
             ...corsOptions,
             headers: { ...authHeaders },
             ...(body && {
@@ -154,9 +147,10 @@
         })
             .then(e => e.text())
             .then(jsonpParse);
+    };
     const apiGet = async (api, search = {}) => await apiFetch(!search ? api : `${api}?${new URLSearchParams(search).toString()}`);
     const apiPost = async (api, body = null) => await apiFetch(api, body);
-
+    //
     const 报错 = async err => {
         console.error(err);
         softAlert(JSON.stringify(err, null, 4));
@@ -192,7 +186,10 @@
     const 新搜索任务爬取 = async () => window.open(await 搜索任务获取(), "_blank");
 
     // ui
-    const uiShow = () => {
+    const 标题更新 = msg =>
+        (globalThis.document.title = `${msg}${new Date().toISOString().slice(-11 - 2, -2)}${document.body.querySelector("h1").textContent}`);
+    const uiShow = async () => {
+        // import from cdn.jsdeliver/@fluentui/react
         const ui = Object.assign(document.createElement("div"), {
             innerHTML: `
                 <div 
@@ -210,6 +207,8 @@
                     <button>next-company</button>
                     <button>next-search</button>
                     <button>debug-mode-set</button>
+                    <span>${await scTokenGet()}</span>
+                    <div class='uiLogs'></div>
                 </div>
             `,
         });
@@ -217,16 +216,48 @@
         元素搜索("next-search", ui).addEventListener("click", 新搜索任务爬取, false);
         元素搜索("debug-mode-set", ui).addEventListener("click", () => (globalThis.debug_flag = 1), false);
         元素搜索("view-in-db", ui).addEventListener("click", () => window.open(apiBase + "/url/" + location.href, "_BLANK"), false);
-
         document?.querySelector("#tycrui")?.parentElement?.remove();
         document.body.appendChild(ui);
-
+        return ui;
         // 'https://dev.xxwl.snomiao.com:8443/api'
     };
-    uiShow();
+    const ui = await uiShow();
+    const uiLogs = [];
+    const uiLog = (...params) => {
+        document.title = params[0].toString() + (document.body.querySelector("h1")?.textContent || "");
+        console.log(...params);
+        uiLogs.push(params);
+        if (ui)
+            ui.querySelector(".uiLogs").textContent = uiLogs
+                .map(e => e.join("\t"))
+                .reverse()
+                .join("\n");
+    };
     //
+    const 用户名获取 = async () => {
+        let got用户名 = "";
+        let trytimes = 30;
+        while (!got用户名 && trytimes-- > 0) {
+            got用户名 = document.querySelector(".nav-user-name")?.textContent;
+            await 睡(1e3); // 用户名间隔ms
+        }
+        if (!got用户名) {
+            const errmsg = "未能获取到用户名，请检查登录状态";
+            uiLogs(errmsg);
+            await 睡(2e3);
+            location.reload(); // 也许重载时会跳转到登录页面
+            // if (需要登录()) {
+            //     location = "/login?";
+            // throw new Error(errmsg);
+            // }
+            let solved = 0;
+            debugger;
+            if (!solved) throw new Error(errmsg);
+        }
+        return got用户名;
+    };
 
-    console.log("加载完成");
+    uiLog("加载完成");
 
     if (用户页面内) {
         // 会员:无
@@ -253,7 +284,7 @@
         // throw new Error("reloading");
     }
     if (!爬取标记) {
-        console.log("未使用爬虫标记，退出");
+        uiLog("未使用爬虫标记，退出");
         // return null;
         throw new Error("未使用爬虫标记，退出");
     }
@@ -266,7 +297,7 @@
             const [A图, B图] = [...ipElement.parentElement.querySelectorAll("img")];
             // const [A源, B源] = [A图, B图].map(e => e.getAttribute("src"));
             const offset = (({ x, y }) => [x, y])(B图.getClientRects()[0]);
-            console.log(offset);
+            uiLog(offset);
             const [x, y] = vecAdd(offset, pos);
             const ropt = {
                 isTrusted: true,
@@ -465,16 +496,25 @@
             // if (!globalThis.errorSolved) throw new Error("滑块验证TODO");
         }
         await 睡(1000);
-        // 账号错误收集上报
-        const 暂停密码登录模式 = /系统检测账号 (\d+) 近期被多个设备登录，可能密码已泄露，为确保账号安全，近期已为您暂停密码登录方式，请使用其他登录方式。/;
-        const 错误元素 = 元素搜索(暂停密码登录模式);
-        if (错误元素) {
-            const [错误, 账号] = 错误元素.textContent.match(暂停密码登录模式);
-            const 错误上报补表 = { 账号, 错误, 错误于: new Date() };
-            const 错误上报返回 = await apiPost("/put", { 任务v2_天眼查_账号池: { 索引: { 账号: 1 }, 表列: [错误上报补表] } });
-            console.log(错误上报补表, 错误上报返回);
-            location.reload();
-        }
+        const tid = setInterval(async () => {
+            console.log("账号错误收集上报监控中");
+            const 暂停密码登录模式 = /系统检测账号 (\d+) 近期被多个设备登录，可能密码已泄露，为确保账号安全，近期已为您暂停密码登录方式，请使用其他登录方式。/;
+            const 暂停密码登录模式2 = /系统检测账号 (\d+) 近期被多个设备登录，/;
+            const 错误消息元素 = 元素搜索(暂停密码登录模式) || 元素搜索(暂停密码登录模式2);
+            if (错误消息元素) {
+                const 错误 = 错误消息元素.textContent;
+                const [_, 错误账号] = 错误消息元素.textContent.match(/账号 (\d+)/) || [];
+                const 账号 = 错误账号 || 账号信息获取().mobile;
+                if (!账号) throw new Error("未能识别错误账号");
+                const 错误上报补表 = { 账号, 错误, 错误于: new Date() };
+                const 错误上报返回 = await apiPost("/put", { 任务v2_天眼查_账号池: { 索引: { 账号: 1 }, 表列: [错误上报补表] } });
+                console.table(错误上报补表);
+                console.table(错误上报返回);
+                await 睡(10e3);
+                clearInterval(tid);
+                location.reload();
+            }
+        }, 1000);
     }
     if (搜索页面内) {
         globalThis.document.title = `爬取中: ${globalThis.document.title}`;
@@ -528,42 +568,41 @@
         const qsa = (ele, sel) => [...ele.querySelectorAll(sel)];
         const rf2 = ls => ls.slice(ls.length / 2).map((_, i) => [ls[2 * i], ls[2 * i + 1]]);
         const 文本获取 = e => e?.innerText || e?.textContent || "";
+
         const 页面内容账号需求标识获取 = async () => ({
             红钻需求: !!元素搜索(/风险红钻·VIP尊享/),
             VIP需求: !!元素搜索(/开通VIP · 查看.*/),
             登录需求: !!元素搜索(/登录后查看更多信息/),
         });
-        // fhttps://www.tianyancha.com/company/419978836#snocrawler
-        const 复杂表体向格列列解析 = tbody =>
+        const td宽高跨度解析 = row =>
+            row.map(td =>
+                Object.assign(td, {
+                    rowspan: Number(td.getAttribute("rowspan") || 1),
+                    colspan: Number(td.getAttribute("colspan") || 1),
+                })
+            );
+        const td横向跨度填充 = row => row.flatMap((td, x) => Array(td.colspan).fill(td));
+        const td纵向跨度填充 = (t, row, y) => [
+            ...t,
+            row.reduce((r, td, x) => {
+                const ltd = t[t.length - 1]?.[r.length];
+                return ltd?.rowspan > 1
+                    ? [
+                          ...r,
+                          Object.assign(ltd, {
+                              rowspan: ltd.rowspan - 1,
+                          }),
+                          td,
+                      ]
+                    : [...r, td];
+            }, []),
+        ];
+        const 合并单元格表体向格列列解析 = tbody =>
             [...tbody.querySelectorAll("tr")]
                 .map((tr, y) => [...tr.querySelectorAll("td")])
-                .map(row =>
-                    row.map(td =>
-                        Object.assign(td, {
-                            rowspan: Number(td.getAttribute("rowspan") || 1),
-                            colspan: Number(td.getAttribute("colspan") || 1),
-                        })
-                    )
-                )
-                .map(row => row.flatMap((td, x) => Array(td.colspan).fill(td)))
-                .reduce(
-                    (t, row, y) => [
-                        ...t,
-                        row.reduce((r, td, x) => {
-                            const ltd = t[t.length - 1]?.[r.length];
-                            return ltd?.rowspan > 1
-                                ? [
-                                      ...r,
-                                      Object.assign(ltd, {
-                                          rowspan: ltd.rowspan - 1,
-                                      }),
-                                      td,
-                                  ]
-                                : [...r, td];
-                        }, []),
-                    ],
-                    []
-                );
+                .map(td宽高跨度解析)
+                .map(td横向跨度填充)
+                .reduce(td纵向跨度填充, []);
         // console.table(
         //     .map(e=>e.map(文本获取))
         //     )
@@ -689,7 +728,7 @@
         };
         const 历史表格表列获取尝试 = t => {
             if (!t.classList.contains("-first-col")) return null;
-            const 格列列 = 复杂表体向格列列解析(t);
+            const 格列列 = 合并单元格表体向格列列解析(t);
             const re = 格列列.map(row => {
                 const [指标, 日期, 内容, ...空] = row.map(文本获取);
                 if (空.length) {
@@ -719,13 +758,13 @@
             // 缓存分页表列表 && console.log(`${分页表列表缓存名称} 缓存读取到长度为 ${Object.values(缓存分页表列表).flat().length}`);
 
             const 分页表列表 = {};
-            const 分页表列表缓存尝试 = async () => {
-                try {
-                    return localStorage.setItem(分页表列表缓存名称, JSON.stringify(分页表列表));
-                } catch (e) {
-                    return null;
-                }
-            };
+            // const 分页表列表缓存尝试 = async () => {
+            //     try {
+            //         return localStorage.setItem(分页表列表缓存名称, JSON.stringify(分页表列表));
+            //     } catch (e) {
+            //         return null;
+            //     }
+            // };
             // if (表名 === "相关公告") debugger;
             while (1) {
                 // 分页处理
@@ -747,7 +786,7 @@
                 // 保存
                 const 所在分页表列 = 表格表列.map(e => ({ ...e, ...(所在分页 && { 所在分页 }) }));
                 分页表列表[所在分页] = 所在分页表列;
-                await 分页表列表缓存尝试().catch();
+                // await 分页表列表缓存尝试().catch();
 
                 // 翻页处理
                 const pagerbar = bdSel(`.pagination`);
@@ -792,8 +831,11 @@
                         }
                         break;
                     }
-                    标题更新();
-                    if (bdSel(".data-content").innerHTML === "") {
+                    标题更新("公司爬取");
+                    if (bdSel(".data-content").clientHeight === 0) {
+                        break; // 爬完了相当于
+                    }
+                    if (bdSel(".data-content").textContent === "") {
                         break; // 爬完了相当于
                     }
                 }
@@ -801,7 +843,10 @@
                     // 明显的页码标记错误，最大页没有内容，此时认为已经爬完
                     break;
                 }
-                if (bdSel(".data-content").innerHTML === "") {
+                if (bdSel(".data-content").clientHeight === 0) {
+                    break; // 爬完了相当于
+                }
+                if (bdSel(".data-content").textContent === "") {
                     break; // 加载后无内容，相当于爬完
                 }
                 if (timeout) {
@@ -811,14 +856,22 @@
             }
             return Object.values(分页表列表).flat();
         };
+
+        const 比率误差修复尝试 = (实, 测, 比率 = 0.05) => (Math.abs(实 - 测) / 实 < 比率 ? 实 : 测);
+        const 个数误差修复尝试 = (实, 测, 个数 = 10) => (Math.abs(实 - 测) < 个数 ? 实 : 测);
+        const 数量容差曲线 = 规模 => Math.log(Math.max(0, 规模 || 0) + 1);
+        const 对数误差修复尝试 = (实, 测, 乘数 = 2) => (Math.abs(实 - 测) < 数量容差曲线(测) * 乘数 ? 实 : 测);
+        // const 误差修复尝试 = (实, 测, 比率 = undefined, 个数 = undefined) => 个数误差修复尝试(实, 比率误差修复尝试(实, 测, 比率), 个数);
+        const 比率个数误差修复尝试 = (实, 测, 比率 = undefined, 个数 = undefined) => 个数误差修复尝试(实, 比率误差修复尝试(实, 测, 比率), 个数);
+        const 误差修复尝试 = (实, 测) => 对数误差修复尝试(实, 测);
+
         // TODO 改成先查所有data-content再处理table
-        const 表格容器块表列表解析 = async blockData => {
-            if(blockData.classList.contains('tab-inner')) blockData=blockData.parentElement
+        const 表格容器块表列表解析 = async (blockData, 数量正常表) => {
+            if (blockData.classList.contains("tab-inner")) blockData = blockData.parentElement;
             const dataContent = blockData.querySelector(".data-content");
             if (!dataContent) return {};
             const t = dataContent.querySelector("table.table");
             if (!t) return {};
-
             // const block_data = 向父级查找(表元素引用, ".data-content").parentElement;
             const { 表名: 块级表名, 数量: 块级数量 } = 表名与数量获取(blockData);
             const 标签信息获取 = tabItem => {
@@ -867,40 +920,43 @@
                 if (表名 === "undefined") {
                     debugger;
                 }
-                const 数量 = 标签内数量 || 块级数量;
                 if (!表名) {
                     console.log(activeTabBlockDataGet());
                     debugger;
                     throw new Error("表名获取异常, debug please");
                 }
+                if (表名 && 数量正常表[表名]) {
+                    blockData.scrollIntoView({ block: "center" });
+                    uiLog(`${表名}数量${数量正常表[表名].标示数量}正常，跳过`);
+                    return {}; //
+                }
+                const 数量 = 标签内数量 || 块级数量;
                 // {表名,数量, activeTabBlockData}
                 const 关键表 = /工商信息|主要人员|股东信息|对外投资|最终受益人|变更记录|开庭公告|法律诉讼/;
                 const 异常表 = /资质资格|双随机抽查/;
                 const 跳过否 = !!表名?.match?.(异常表); // 暂时禁用
-                if (跳过否) return { 表名, 数量, 表列: "解析TODO" };
-
+                if (跳过否) {
+                    const 错误 = "解析未实现，跳过";
+                    return { [表名]: "解析未实现，跳过", [`${表名}_数量`]: 数量, ...(错误 && { [`${表名}_错误`]: 错误 }) };
+                }
                 const 翻页否 = !!表名?.match?.(关键表); // 暂时禁用
-
-                let 原始表列 = await 表格表列翻页获取(activeTabBlockDataGet(), { 表名, 数量, 页数限制: +Infinity });
-
+                const 原始表列 = await 表格表列翻页获取(activeTabBlockDataGet(), { 表名, 数量, 页数限制: +Infinity });
                 //注意翻页行为会让t被remove,所以必须先搞定表名与数量
-                const 表列 = 表列人员解析(原始表列);
+                const 解析表列 = 表列人员解析(原始表列);
                 const 表列按函数去重 = (表列, 相等函数) => 表列.filter((a, index) => index === 表列.findIndex(b => 相等函数(a, b)));
                 const 表列针对序号去重 = 表列 => (表列?.[0]?.序号 ? 表列按函数去重(表列, (a, b) => a.序号 === b.序号) : 表列);
 
                 // 由于网络延迟问题可能某页会重复爬取，于是对表列去重尝试解决
-                const 去重表列 = 表列针对序号去重(表列);
+                const 去重表列 = 表列针对序号去重(解析表列);
                 // 爬取的比天眼查统计到的多1个，可能是天眼查数量统计更新不及时，这里尝试修正一下
-                const 比率误差修复尝试 = (实, 测, 比率 = 0.1) => (Math.abs(实 - 测) / 实 <= 比率 ? 实 : 测);
-                const 个数误差修复尝试 = (实, 测, 个数 = 2) => (Math.abs(实 - 测) <= 个数 ? 实 : 测);
-                const 修补数量 = 个数误差修复尝试(去重表列.length, 比率误差修复尝试(去重表列.length, 数量 || 表列.length));
+                const 修补数量 = 误差修复尝试(去重表列.length, 数量 || 解析表列.length);
                 let 错误 = null;
                 if (去重表列.length < 修补数量) {
                     // console.log(表名, 元素搜索(表名))
                     元素搜索(表名.replace(/_.*/, "")).scrollIntoView({ block: "center" });
                     错误 = 表名 + "数据可能未解析完整" + location.href.replace(/#.*/, "");
                     softAlert(错误);
-                    console.log(表名, 去重表列, 去重表列.length, 数量);
+                    uiLog(表名, 去重表列, 去重表列.length, 数量);
                     const 忽略表 = 翻页不正常表名列.includes(表名);
                     const 超大表 = 去重表列.length >= 5000;
                     const 小空表 = 去重表列.length == 0 && 数量 < 2;
@@ -911,6 +967,7 @@
                     }
                 }
                 if (去重表列.length > 修补数量) {
+                    // blockData.scrollIntoView()
                     错误 = "数量获取异常，请检查页面 " + location.href.replace(/#.*/, "");
                     debugger;
                     if (!solved) throw new Error("数量获取异常");
@@ -921,27 +978,37 @@
             return 表列表;
         };
         // 数量验证 TODO
-        const 数量异常表获取 = async 汇总返回表列表 => {
-            const 数验doc = 汇总返回表列表;
-            const 数量表 = Object.fromEntries(
+        const 数量表获取 = 数验doc =>
+            Object.fromEntries(
                 Object.entries(数验doc)
                     .filter(([k, v]) => k.endsWith("_数量"))
                     .map(([k, v]) => [k.slice(0, -3), v])
             );
+        const 数量比对表获取 = doc => {
+            const 数量表 = 数量表获取(doc);
+            return Object.fromEntries(Object.entries(数量表).map(([表名, 标示数量]) => [表名, { 表名, 标示数量, 表列数量: doc[表名]?.length }]));
+        };
+        const 数量异常表获取 = async (数验doc, 忽略已知错误表) => {
             const 数量异常忽略列 = [...表名大类, ...未能爬取表名列, ...需要红钻表名列, ...空表表列];
-            const 数量异常表列 = Object.entries(数量表)
-                .filter(([k, v]) => (数验doc[k]?.length ?? 0) !== v)
-                .filter(([k]) => !k.startsWith("历史")) //历史xxx格式都挺奇怪的……
-                .filter(([k]) => !数量异常忽略列.includes(k))
-                .map(([表名, 标示数量]) => {
-                    if (数验doc[表名]) {
-                        console.log(表名, 数验doc[表名].length, 标示数量);
+            const 数量异常表列 = Object.entries(数量比对表获取(数验doc))
+                .filter(([表名, { 标示数量, 表列数量 }]) => 标示数量 !== 表列数量)
+                .filter(([表名]) => !表名.startsWith("历史")) //历史xxx格式都挺奇怪的……
+                .filter(([表名]) => (忽略已知错误表 ? !数量异常忽略列.includes(表名) : 1))
+                .map(([表名, { 标示数量, 表列数量 }]) => {
+                    if (表列数量 && 标示数量) {
+                        uiLog("数量异常表");
+                        console.table({ 表名, 表列数量, 标示数量 });
                         console.table(数验doc[表名]);
                     }
-                    const 表列数量 = 数验doc[表名]?.length;
+                    const 修复数量 = 误差修复尝试(表列数量, 标示数量);
+                    if (修复数量 === 表列数量) return null; // 忽略可能由网络同步延迟导致的偏差
                     if (标示数量 == 0 && 表列数量 > 0) {
                         // 数量修复，例如工商信息和私募基金等
                         数验doc[表名 + "_数量"] = 表列数量;
+                        return null;
+                    }
+                    if (!表列数量 && !标示数量) {
+                        // 暂未能爬取的特殊格式，忽略
                         return null;
                     }
                     return { 表名, 表列数量, 标示数量 };
@@ -952,31 +1019,44 @@
         };
 
         // run
-        const 标题更新 = () => (globalThis.document.title = `司${new Date().toISOString().slice(-11 - 2, -2)}${document.body.querySelector('h1').textContent}`);
+        const 当前页面数据库查询 = async () => await apiPost("/url/", { url: location.href.replace(/#.*/, "") });
+
         const 公司数据爬取 = async () => {
-            标题更新();
+            标题更新("公司爬取");
             await 睡(开始爬取等待毫秒); // wait is important
             const 用户名 = await 用户名获取();
-            const 子级表格容器块列 = qsa(document, ".block-data .block-data");
-            const 最高级表格容器块列 = qsa(document, ".block-data").filter(e => !子级表格容器块列.includes(e));
-            const 表列数据表 = (await (DEBUG标记 ? amap : pmap)(最高级表格容器块列, 表格容器块表列表解析)).reduce((a, b) => ({ ...a, ...b }));
-            // .filter(({ 表名 }) => 表名 && !表名.match("："))
-            // .filter(({ 表列 }) => 表列)
-            // .flatMap(({ 表名, 数量, 表列, 错误 }) =>
-            //     [[表名, 表列], [`${表名}_数量`, 数量], 错误 && [`${表名}_错误`, 错误]].filter(e => e)
-
+            // 获取标题数量，
+            const 库中已有内容表 = await 当前页面数据库查询();
             const 标题数量表 = Object.fromEntries(
                 qsa(document, ".data-title")
                     .map(表名与数量获取)
                     .filter(e => e)
                     .map(({ 表名, 数量 }) => [表名 + "_数量", 数量])
             );
+            const 数量正常表 = Object.fromEntries(
+                Object.entries(数量比对表获取({ ...库中已有内容表, ...标题数量表 })).filter(([, { 标示数量, 表列数量 }]) => 标示数量 === 表列数量)
+            );
+            console.table(数量正常表);
+            // throw new Error("check");
+            const 子级表格容器块列 = qsa(document, ".block-data .block-data");
+            const 最高级表格容器块列 = qsa(document, ".block-data").filter(e => !子级表格容器块列.includes(e));
+            // .filter(e=>!e.querySelector('.data-title').textContent));
+
+            const 表列数据表 = (await (DEBUG标记 ? amap : pmap)(最高级表格容器块列, async e => await 表格容器块表列表解析(e, 数量正常表))).reduce((a, b) => ({
+                ...a,
+                ...b,
+            }));
+            // .filter(({ 表名 }) => 表名 && !表名.match("："))
+            // .filter(({ 表列 }) => 表列)
+            // .flatMap(({ 表名, 数量, 表列, 错误 }) =>
+            //     [[表名, 表列], [`${表名}_数量`, 数量], 错误 && [`${表名}_错误`, 错误]].filter(e => e)
+
             const 以键名排序 = ([ka], [kb]) => ka.localeCompare(kb);
             const 无序汇总返回表 = { ...标题数量表, ...表列数据表 };
             const 汇总返回表列表 = ofe(Object.entries(无序汇总返回表).sort(以键名排序));
             const 表打印 = ([键, 值]) => {
                 if (typeof 值 === "object") return console.table(值);
-                return console.log(`${键}:${值}`);
+                return uiLog(`${键}:${值}`);
             };
             // 打印
             const 标签描述表 = ofe(
@@ -1034,13 +1114,14 @@
                     },
                 ],
             };
-            console.log("正在上报录入数据库", 上传JSON);
+            uiLog("正在上报录入数据库", 上传JSON);
             const 数据库录入结果 = await apiPost("/tyc/put", 上传JSON);
-            const 当页缓存清除 = () => [...Object.keys(localStorage)].filter(e => e.startsWith(location.pathname)).map(e => localStorage.removeItem(e));
-            当页缓存清除();
+            uiLog("数据库录入结果", 数据库录入结果);
+            // const 当页缓存清除 = () => [...Object.keys(localStorage)].filter(e => e.startsWith(location.pathname)).map(e => localStorage.removeItem(e));
+            // 当页缓存清除();
 
             if (数据库录入结果?.code !== 0) {
-                console.log(数据库录入结果);
+                uiLog(数据库录入结果);
                 softAlert(JSON.stringify(数据库录入结果, null, 4));
                 debugger;
                 throw new Error("数据库未录入完成");
@@ -1052,7 +1133,7 @@
         // 调试
         const 数量异常表 = 公司情况表?.数量异常表;
         if (数量异常表 && Object.keys(数量异常表).length) {
-            // console.log(数据库录入结果);
+            // uiLog(数据库录入结果);
             console.table(数量异常表);
             // 继续
             await 新公司爬取任务爬取();

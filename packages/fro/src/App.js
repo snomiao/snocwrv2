@@ -2,19 +2,30 @@ import { useState, useCallback, useContext, useEffect, useMemo } from "react";
 // import Speaker from "audio-speaker/stream";
 // import Generator from "audio-generator/stream";
 import { debounce } from "debounce";
-import yaml from 'yaml'
-// import {
-//   Routes,
-//   Link,
-//   BrowserRouter,
-//   Route,
-//   Outlet,
-//   useParams
-// } from "react-router-dom";
+import { Resizable } from "re-resizable";
+import yaml from "yaml";
 // import useFetch from "use-http";
 // import useLocalStorage from "use-local-storage";
 import JSONViewer from "react-json-viewer";
-import { PrimaryButton, Button, TextField, Label, ActionButton, MessageBarButton, CompoundButton, CommandButton } from "@fluentui/react";
+// import jwt from "jwt-promisify";
+import {
+    PrimaryButton,
+    Button,
+    TextField,
+    Label,
+    ActionButton,
+    MessageBarButton,
+    CompoundButton,
+    CommandButton,
+    DefaultButton,
+    Popup,
+    Modal,
+    Dialog,
+    SearchBox,
+    Stack,
+    DialogContent,
+    Spinner,
+} from "@fluentui/react";
 import { useForm } from "react-hook-form";
 import { CSV } from "tsv";
 // import { Button } from "antd";
@@ -22,27 +33,38 @@ import { CSV } from "tsv";
 import "./styles.css";
 // import { 对列表, 睡 } from "sno-utils";
 import useInterval from "react-useinterval";
+import useLocalStorage from "use-local-storage";
 // import useLocalStorage from "react-use-localstorage";
 // import webaudio from "webaudio";
 const H3 = ({ name }) => (
     <h3 id={name}>
-        <a href={"#" + name}>###</a> {name}：
+        <a href={"#" + name}> {name}</a>
     </h3>
 );
-const jsonpParse = jsonp => {
-    const _ = json => json;
-    try {
-        return eval(jsonp); //json.length === 1 ? json[0] : json;
-    } catch (e) {
-        return null;
+const jsonDateReviver = (_key, value) => {
+    if (typeof value === "string" && value.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/)) {
+        const dt = new Date(value);
+        return dt.toLocaleString();
+        // return dt;
     }
+    return value;
+};
+const jsonpParse = jsonp => {
+    return JSON.parse(jsonp.slice(2, -1), jsonDateReviver);
+    // const _ = json => json;
+    // try {
+    //     return eval(jsonp); //json.length === 1 ? json[0] : json;
+    // } catch (e) {
+    //     return null;
+    // }
 };
 let snocrawler_token = "";
+
 const AccountPut = () => {
     const { register, handleSubmit, ...form } = useForm();
-    const onSubmit = async ({ 账号, 密码 }) => {
+    const onSubmit = async ({ 账号, 密码, 来源 }) => {
         const 提交表 = {
-            任务v2_天眼查_账号池: { 索引: { 账号: 1 }, 表列: [{ 账号, 密码 }] },
+            任务v2_天眼查_账号池: { 索引: { 账号: 1 }, 表列: [{ 账号, 密码, 来源, 导入于: new Date() }] },
         };
         const 返回值 = await apiPost("/put", 提交表).catch(err => form.setError("账号", err.message));
         form.reset();
@@ -53,8 +75,9 @@ const AccountPut = () => {
     return (
         <form onSubmit={handleSubmit(onSubmit)}>
             <H3 name="账号提交" />
-            <TextField {...register("账号")} />
-            <TextField {...register("密码")} />
+            <TextField {...register("账号")} placeholder="账号" />
+            <TextField {...register("密码")} placeholder="密码" />
+            <TextField {...register("来源")} placeholder="来源" />
             <PrimaryButton type="submit">提交</PrimaryButton>
         </form>
     );
@@ -121,21 +144,31 @@ const CompanySearchTaskImporter = () => {
         </form>
     );
 };
+
+// const apiBase = "https://dev.xxwl.snomiao.com:8443/api";
+// const apiBase = "https://dev.xxwl.snomiao.com:8443/api";
+
 const apiBase = "https://dev.xxwl.snomiao.com:8443/api";
+// { "dev.xxwl.snomiao.com": "https://dev.xxwl.snomiao.com:8443/api", localhost: "https://localhost:65534/api" }[] ||
+// "/api";
 const corsOptions = {
     mode: "cors",
     credentials: "include",
 };
-const authHeaders = {
-    Authorization: "Basic " + (snocrawler_token || "snocrawler"),
+const authHeadersGet = () => {
+    const tokenStr = localStorage.getItem("crawlerToken")
+    const token = tokenStr && JSON.parse(tokenStr)
+    return {
+        Authorization: "Basic " + (token || "snocrawler"),
+    };
 };
 const apiFetch = async (path, body = null) =>
     await fetch(apiBase + path, {
         ...corsOptions,
-        headers: { ...authHeaders },
+        headers: { ...authHeadersGet() },
         ...(body && {
             method: "post",
-            headers: { "content-type": "application/json", ...authHeaders },
+            headers: { "content-type": "application/json", ...authHeadersGet() },
             body: JSON.stringify(body),
         }),
     })
@@ -195,21 +228,21 @@ export const ApiFetchViewer = ({ name, url, body, interval = 0 }) => {
     const jsonCopy = async () => await navigator.clipboard.writeText(JSON.stringify(json, null, 4));
     const yamlCopy = async () => await navigator.clipboard.writeText(yaml.stringify(json, null, 4));
     const update = () => setRand(Math.random());
-
+    const big = JSON.stringify(json).length > 100 ? "big" : "";
     useInterval(update, interval);
     return (
         <div>
-            <div>
+            <div className={["header", loading && "loading", error && "error"].filter(e => e).join(" ")}>
+                <H3 name={name} />{loading && <Spinner />}
                 <div className="status">
-                    {loading && <span className="loading">Loading...</span>}
-                    {error && <span className="error">Error...</span>}
-                    复制：
-                    <ActionButton onClick={jsonCopy} text="JSON" />
-                    <ActionButton onClick={yamlCopy} text="YAML" />
+                    {/* <ActionButton className="loading">Loading...</ActionButton> */}
+                    {/* {loading && <ActionButton className="loading">Loading...</ActionButton>}
+                    {error && <ActionButton className="error">Error...</ActionButton>} */}
+                    <ActionButton onClick={jsonCopy} text="JSON复制" />
+                    <ActionButton onClick={yamlCopy} text="YAML复制" />
                     {/* <span className="time"># 刷新：{new Date().toISOString()}</span> */}
                     <ActionButton onClick={update} text="刷新" />
                 </div>
-                <H3 name={name} />
             </div>
             <div className="jsonViewer">{json && <JSONViewer json={json} />}</div>
         </div>
@@ -238,49 +271,102 @@ export const ApiFetchViewer = ({ name, url, body, interval = 0 }) => {
   },
 };
  */
-export const ApiAuthForm = () => {
+
+export const ApiAuthDialog = () => {
+    const [token, setToken] = useLocalStorage("crawlerToken", null);
     const { register, handleSubmit, ...form } = useForm();
+    const [error, setError] = useState(null);
     const onSubmit = async ({ 用户名, 密码 }) => {
-        const 令牌 = await apiPost("/login", { 用户名, 密码 }).catch(err => form.setError("账号", err.message));
-        alert(JSON.stringify(令牌));
+        await apiPost("/login", { 用户名, 密码 })
+            .then(({ code, 错误, 令牌 }) => {
+                if (错误) throw new Error(错误);
+                console.log(令牌)
+                setToken(令牌);
+                console.log(token)
+            })
+            .catch(err => setError(err.message));
     };
     return (
-        <form onSubmit={handleSubmit(onSubmit)}>
-            {snocrawler_token}
-            <TextField label="用户名" {...register("用户名")} />
-            <TextField label="密码" {...register("密码")} type="password" />
-            <PrimaryButton text="登录" />
-        </form>
+        <Dialog hidden={false}>
+            <h3>系统登录</h3>
+            <DialogContent>
+                <form onSubmit={handleSubmit(onSubmit)}>
+                    <TextField label="用户名" {...register("用户名")} errorMessage={error} />
+                    <TextField label="密码" {...register("密码")} type="password" />
+                    {error}
+                    <PrimaryButton text="登录" type="submit" />
+                </form>
+            </DialogContent>
+        </Dialog>
     );
 };
 export const ApiProvider = ({ children }) => {};
 export const ApiAuthProvider = ({ children }) => {
-    // const [token, setToken ] = useStatus()
-    // return token ? children : <ApiAuthForm />;
-    return <>{children}</>;
+    const [token, setToken] = useLocalStorage("crawlerToken", null);
+    if (token) {
+        return <>{children}</>;
+    }
+    return token ? children : <ApiAuthDialog />;
+};
+export const ModalButton = ({ children, ...props }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    return (
+        <>
+            <ActionButton onClick={() => setIsOpen(true)} {...props} />
+            <Modal {...{ isOpen }} onDismiss={() => setIsOpen(false)}>
+                <div style={{ padding: "1rem", width: "35rem" }}>{children}</div>
+            </Modal>
+        </>
+    );
 };
 export const DataSearcher = () => {
     const [query, setQuery] = useState("");
-    const taskImport = () => {
-        // import query...
-    };
-    debounce(() => {
-        // search(value)
-    }, 1000);
+    const [results, setResults] = useState(null);
+    const [loading, setLoading] = useState(null);
+    const [error, setError] = useState(null);
     const onChange = (e, value) => {
         setQuery(value);
     };
+    const search = async value => {
+        alert(value);
+        // setLoading(true);
+        // const results = await apiPost("/tyc/search", { query }).catch(e => setError(e.message));
+        // setResults(results);
+        // setLoading(false);
+    };
     return (
         <div>
-            <div>输入链接或搜索关键词，多个关键词使用空格或换行分割</div>
-            <TextField
-                value={query}
-                onChange={onChange}
-                placeholder={"https://www.tianyancha.com/company/XXXXX\n上海XXXX有限公司"}
-                multiline
+            <H3 name="公司搜索" />
+            <SearchBox
+                // value={query}
+                // onChange={onChange}
+                onSearch={search}
+                placeholder={"https://www.tianyancha.com/company/XXXXX 或 上海XXXX有限公司"}
+                iconProps={{ iconName: "Search", hidden: false, styles: { root: { display: "block" } } }}
+                // onClick={() => (searchBoxRef.hidden = false)}
             />
-            未找到满意结果？
-            <ActionButton text="加入搜索任务" onClick={taskImport} />
+            {/* <DefaultButton text="搜索" onClick={search} /> */}
+
+            <ModalButton text="未找到满意结果？ 搜索/任务 智能导入">
+                <CompanySearchTaskImporter />
+            </ModalButton>
+
+            <ModalButton text="账号提交">
+                <AccountPut />
+            </ModalButton>
+            <ModalButton text="账号错误提交">
+                <AccountErrorPut />
+            </ModalButton>
+            {/* <ActionButton text="账号提交" onClick={openAccountPut}/>
+            <Modal onDismiss={() => modalClose('AccountPut') = 0}>
+                <AccountPut />
+            </Modal> */}
+            {/* <ActionButton text="账号错误提交" onClick={openAccountErrorPut}/>
+            <Modal onDismiss={() => modalClose('AccountErrorPut') = 0}>
+                <AccountErrorPut />
+            </Modal> */}
+
+            <div className="jsonViewer">{results && <JSONViewer json={results} />}</div>
         </div>
     );
 };
@@ -297,31 +383,31 @@ export default function App() {
         <Link to="/search">Search</Link> | <Link to="/company">Company</Link>
       </nav> */}
             <header>
-                <h1>雪星爬虫/数据监视管理面板</h1>
+                <h1>格爬/数据监视管理面板/天眼查</h1>
             </header>
             <div className="App">
                 <ApiAuthProvider>
-                    <DataSearcher />
-                    <ApiFetchViewer name="数据抓取任务进度" url={"/company/progress"} interval={3e3} />
-                    <ApiFetchViewer name="公司搜索任务进度" url={"/search/progress"} interval={3e3} />
-                    <ApiFetchViewer name="资源使用情况" url={"/balance"} interval={3e3} />
-                    <ApiFetchViewer name="账号列表" url={"/tyc/account/list"} interval={10e3} />
-                    {/* <ApiFetchViewer
-        name="搜索任务列表"
-        url={"/tyc/search/list"}
-        interval={60e3}
-      /> */}
-                    <CompanySearchTaskImporter />
-                    <AccountPut />
-                    <AccountErrorPut />
-                    {/* <ApiFetchViewer
+                    <Stack /* className="App" */ style={{ padding: "1rem", maxWidth: "70em" }} tokens={{ childrenGap: "1em" }}>
+                        <DataSearcher />
+                        <ApiFetchViewer name="资源使用情况" url={"/balance"} interval={3e3} />
+                        {/* 任务进度 */}
+                        <ApiFetchViewer name="数据抓取任务进度" url={"/company/progress"} interval={3e3} />
+                        <ApiFetchViewer name="公司搜索任务进度" url={"/search/progress"} interval={3e3} />
+                        {/* 资源列表 */}
+                        <TycAccounts />
+                        {/* <ApiFetchViewer
         name="最近解析"
         url={"/company/latest/parse"}
         interval={60e3}
       /> */}
-                    {/* <Outlet /> */}
+                        {/* <Outlet /> */}
+                    </Stack>
                 </ApiAuthProvider>
             </div>
+            <footer>关于格爬：Copyright(c) 2020-2021 snomiao.com </footer>
         </div>
     );
+}
+function TycAccounts() {
+    return <ApiFetchViewer name="账号列表" url={"/tyc/account/list"} interval={10e3} />;
 }

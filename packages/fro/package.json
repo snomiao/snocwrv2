@@ -8,6 +8,8 @@
         "@testing-library/react": "^12.1.2",
         "@testing-library/user-event": "^13.5.0",
         "debounce": "^1.2.1",
+        "jwt-promisify": "^1.1.3",
+        "re-resizable": "^6.9.1",
         "react": "^17.0.2",
         "react-charts": "^3.0.0-beta.34",
         "react-dom": "^17.0.2",
@@ -17,11 +19,12 @@
         "react-useinterval": "^1.0.2",
         "sno-utils": "^0.3.5",
         "tsv": "^0.2.0",
+        "use-local-storage": "^2.2.5",
         "web-vitals": "^2.1.2",
         "webaudio": "^1.0.1"
     },
     "scripts": {
-        "start": "react-scripts start",
+        "start": "cross-env HOST=0.0.0.0 PORT=65535 react-scripts start",
         "build": "react-scripts build",
         "test": "react-scripts test",
         "eject": "react-scripts eject"
@@ -43,5 +46,8 @@
             "last 1 firefox version",
             "last 1 safari version"
         ]
+    },
+    "devDependencies": {
+        "cross-env": "^7.0.3"
     }
 }
