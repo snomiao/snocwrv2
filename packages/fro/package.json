@@ -23,6 +23,7 @@
         "web-vitals": "^2.1.2",
         "webaudio": "^1.0.1"
     },
+    "homepage": ".",
     "scripts": {
         "start": "cross-env HOST=0.0.0.0 PORT=65535 react-scripts start",
         "build": "react-scripts build",
@@ -49,5 +50,6 @@
     },
     "devDependencies": {
         "cross-env": "^7.0.3"
-    }
+    },
+    "proxy": "http://localhost:65534"
 }

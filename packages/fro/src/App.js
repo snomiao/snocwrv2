@@ -25,6 +25,7 @@ import {
     Stack,
     DialogContent,
     Spinner,
+    StackItem,
 } from "@fluentui/react";
 import { useForm } from "react-hook-form";
 import { CSV } from "tsv";
@@ -145,19 +146,14 @@ const CompanySearchTaskImporter = () => {
     );
 };
 
-// const apiBase = "https://dev.xxwl.snomiao.com:8443/api";
-// const apiBase = "https://dev.xxwl.snomiao.com:8443/api";
-
-const apiBase = "https://dev.xxwl.snomiao.com:8443/api";
-// { "dev.xxwl.snomiao.com": "https://dev.xxwl.snomiao.com:8443/api", localhost: "https://localhost:65534/api" }[] ||
-// "/api";
+const apiBase = "/api";
 const corsOptions = {
     mode: "cors",
     credentials: "include",
 };
 const authHeadersGet = () => {
-    const tokenStr = localStorage.getItem("crawlerToken")
-    const token = tokenStr && JSON.parse(tokenStr)
+    const tokenStr = localStorage.getItem("crawlerToken");
+    const token = tokenStr && JSON.parse(tokenStr);
     return {
         Authorization: "Basic " + (token || "snocrawler"),
     };
@@ -216,7 +212,7 @@ const useApiFetch = (url, body, { onLoad }) => {
 //   });
 //   return [setBeep];
 // };
-export const ApiFetchViewer = ({ name, url, body, interval = 0 }) => {
+export const ApiFetchViewer = ({ name, url, body, interval = 0, children }) => {
     const [rand, setRand] = useState(0);
     const onLoad = json => {
         const freq = 440 * json?.访问数量?.分钟;
@@ -228,19 +224,19 @@ export const ApiFetchViewer = ({ name, url, body, interval = 0 }) => {
     const jsonCopy = async () => await navigator.clipboard.writeText(JSON.stringify(json, null, 4));
     const yamlCopy = async () => await navigator.clipboard.writeText(yaml.stringify(json, null, 4));
     const update = () => setRand(Math.random());
-    const big = JSON.stringify(json).length > 100 ? "big" : "";
     useInterval(update, interval);
     return (
         <div>
             <div className={["header", loading && "loading", error && "error"].filter(e => e).join(" ")}>
-                <H3 name={name} />{loading && <Spinner />}
+                <H3 name={name} />
+                {loading && <Spinner />}
                 <div className="status">
                     {/* <ActionButton className="loading">Loading...</ActionButton> */}
                     {/* {loading && <ActionButton className="loading">Loading...</ActionButton>}
                     {error && <ActionButton className="error">Error...</ActionButton>} */}
+                    {children}
                     <ActionButton onClick={jsonCopy} text="JSON复制" />
                     <ActionButton onClick={yamlCopy} text="YAML复制" />
-                    {/* <span className="time"># 刷新：{new Date().toISOString()}</span> */}
                     <ActionButton onClick={update} text="刷新" />
                 </div>
             </div>
@@ -280,9 +276,9 @@ export const ApiAuthDialog = () => {
         await apiPost("/login", { 用户名, 密码 })
             .then(({ code, 错误, 令牌 }) => {
                 if (错误) throw new Error(错误);
-                console.log(令牌)
+                console.log(令牌);
                 setToken(令牌);
-                console.log(token)
+                console.log(token);
             })
             .catch(err => setError(err.message));
     };
@@ -322,49 +318,53 @@ export const ModalButton = ({ children, ...props }) => {
 export const DataSearcher = () => {
     const [query, setQuery] = useState("");
     const [results, setResults] = useState(null);
+    const [filters, setFilters] = useState(null);
+    const [fields, setFields] = useState(null);
     const [loading, setLoading] = useState(null);
     const [error, setError] = useState(null);
     const onChange = (e, value) => {
         setQuery(value);
     };
-    const search = async value => {
-        alert(value);
-        // setLoading(true);
-        // const results = await apiPost("/tyc/search", { query }).catch(e => setError(e.message));
-        // setResults(results);
-        // setLoading(false);
+    const jsonCopy = async () => await navigator.clipboard.writeText(JSON.stringify(results, null, 4));
+    const yamlCopy = async () => await navigator.clipboard.writeText(yaml.stringify(results, null, 4));
+    const search = async query => {
+        // alert(query);
+        setLoading(true);
+        await apiPost("/tyc/search", { query })
+            .then(e => setResults(e || []))
+            .catch(e => setError(e.message));
+        setLoading(false);
     };
     return (
         <div>
-            <H3 name="公司搜索" />
-            <SearchBox
-                // value={query}
-                // onChange={onChange}
-                onSearch={search}
-                placeholder={"https://www.tianyancha.com/company/XXXXX 或 上海XXXX有限公司"}
-                iconProps={{ iconName: "Search", hidden: false, styles: { root: { display: "block" } } }}
-                // onClick={() => (searchBoxRef.hidden = false)}
-            />
-            {/* <DefaultButton text="搜索" onClick={search} /> */}
-
-            <ModalButton text="未找到满意结果？ 搜索/任务 智能导入">
-                <CompanySearchTaskImporter />
-            </ModalButton>
-
-            <ModalButton text="账号提交">
-                <AccountPut />
-            </ModalButton>
-            <ModalButton text="账号错误提交">
-                <AccountErrorPut />
-            </ModalButton>
-            {/* <ActionButton text="账号提交" onClick={openAccountPut}/>
-            <Modal onDismiss={() => modalClose('AccountPut') = 0}>
-                <AccountPut />
-            </Modal> */}
-            {/* <ActionButton text="账号错误提交" onClick={openAccountErrorPut}/>
-            <Modal onDismiss={() => modalClose('AccountErrorPut') = 0}>
-                <AccountErrorPut />
-            </Modal> */}
+            <div className={["header", loading && "loading", error && "error"].filter(e => e).join(" ")}>
+                <H3 name="公司搜索" />
+                {loading && <Spinner />}
+                <div className="status">
+                    <ModalButton text="未找到满意结果？新搜索/任务 导入">
+                        <CompanySearchTaskImporter />
+                    </ModalButton>
+                    {results && (
+                        <>
+                            <ActionButton onClick={jsonCopy} text="JSON复制" />
+                            <ActionButton onClick={yamlCopy} text="YAML复制" />
+                        </>
+                    )}
+                </div>
+            </div>
+            <Stack horizontal>
+                <StackItem grow={1}>
+                    <SearchBox
+                        // value={query}
+                        // onChange={onChange}
+                        onSearch={search}
+                        placeholder={"https://www.tianyancha.com/company/XXXXX 或 上海XXXX有限公司"}
+                        iconProps={{ iconName: "Search", hidden: false, styles: { root: { display: "block" } } }}
+                        // onClick={() => (searchBoxRef.hidden = false)}
+                    />
+                </StackItem>
+                <DefaultButton text="搜索" onClick={search} />
+            </Stack>
 
             <div className="jsonViewer">{results && <JSONViewer json={results} />}</div>
         </div>
@@ -409,5 +409,14 @@ export default function App() {
     );
 }
 function TycAccounts() {
-    return <ApiFetchViewer name="账号列表" url={"/tyc/account/list"} interval={10e3} />;
+    return (
+        <ApiFetchViewer name="账号列表" url={"/tyc/account/list"} interval={10e3}>
+            <ModalButton text="账号提交">
+                <AccountPut />
+            </ModalButton>
+            <ModalButton text="账号错误提交">
+                <AccountErrorPut />
+            </ModalButton>
+        </ApiFetchViewer>
+    );
 }

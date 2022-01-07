@@ -1,0 +1,1 @@
+ssh root@glwc1.snomiao.com

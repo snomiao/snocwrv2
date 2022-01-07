@@ -456,9 +456,12 @@
             x: x,
             y: y,
         });
-        const 元素拖动 = async (元素, 相对位置 = [0, 0]) => {
+        const centerGet = (元素)=>{
             const { x, y, width: w, height: h } = 元素.getClientRects()[0];
-            const [cx, cy] = [x + w / 2, y + h / 2];
+            return [x + w / 2, y + h / 2]
+        }
+        const 元素拖动 = async (元素, 相对位置 = [0, 0]) => {
+            const [cx, cy] = centerGet(元素);
             const [tx, ty] = [相对位置[0] + cx, 相对位置[1] + cy];
             元素.dispatchEvent(new MouseEvent("mouseover", optMake(cx, cy)));
             元素.dispatchEvent(new MouseEvent("mousedown", optMake(cx, cy)));
@@ -472,13 +475,13 @@
                 const q = 1 - p;
                 const [nx, ny] = [cx * q + tx * p, cy * q + ty * p];
                 console.log(nx, ny);
-                元素.dispatchEvent(new MouseEvent("mouseover", optMake(nx, ny)));
+                元素.dispatchEvent(new MouseEvent("mousemove", optMake(nx, ny)));
                 元素.dispatchEvent(new MouseEvent("mousedown", optMake(nx, ny)));
                 await 睡(64);
             }
             console.log(cx, cy, tx, ty);
             await 睡(100);
-            元素.dispatchEvent(new MouseEvent("mouseover", optMake(tx, ty)));
+            元素.dispatchEvent(new MouseEvent("mousemove", optMake(tx, ty)));
             元素.dispatchEvent(new MouseEvent("mouseup", optMake(tx, ty)));
         };
         const 过验证码 = async () => {
